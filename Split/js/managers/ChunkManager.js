@@ -37,18 +37,43 @@ export class ChunkManager {
         }
     }
 
-    rebuildChunkAt(worldX, worldY, worldZ, materials, grassMaterials) {
-        const cX = Math.floor(worldX / CHUNK_SIZE);
-        const cY = Math.floor((worldY - WORLD_MIN_Y) / CHUNK_SIZE);
-        const cZ = Math.floor(worldZ / CHUNK_SIZE);
-        const key = `${cX},${cY},${cZ}`;
+    // Split/js/managers/ChunkManager.js
 
-        if (this.chunks.has(key)) {
-            const chunk = this.chunks.get(key);
-            chunk.dispose();
-            chunk.build(this.world, materials, grassMaterials);
-            chunk.setActive(true);
-        }
+    rebuildChunkAt(worldX, worldY, worldZ, materials, grassMaterials) {
+        // Helferfunktion, um einen einzelnen Chunk anhand seiner Chunk-Koordinaten neu zu bauen.
+        const rebuild = (cx, cy, cz) => {
+            const key = `${cx},${cy},${cz}`;
+            if (this.chunks.has(key)) {
+                const chunk = this.chunks.get(key);
+                chunk.dispose(); // Alte Geometrie entfernen
+                chunk.build(this.world, materials, grassMaterials); // Chunk mit neuen Daten neu aufbauen
+                chunk.setActive(true); // Sicherstellen, dass der Chunk sichtbar ist
+            }
+        };
+
+        // 1. Berechne die Koordinaten des Chunks, in dem die Änderung stattfand.
+        const mainChunkX = Math.floor(worldX / CHUNK_SIZE);
+        const mainChunkY = Math.floor((worldY - WORLD_MIN_Y) / CHUNK_SIZE);
+        const mainChunkZ = Math.floor(worldZ / CHUNK_SIZE);
+
+        // 2. Baue diesen Chunk in jedem Fall neu.
+        rebuild(mainChunkX, mainChunkY, mainChunkZ);
+
+        // 3. Prüfe, ob die Änderung an einer Kante des Chunks stattfand.
+        //    Wenn ja, muss der jeweilige Nachbar-Chunk ebenfalls neu gebaut werden.
+        const xInChunk = worldX % CHUNK_SIZE;
+        const yInChunk = (worldY - WORLD_MIN_Y) % CHUNK_SIZE;
+        const zInChunk = worldZ % CHUNK_SIZE;
+
+        // Horizontale Nachbarn (links/rechts, vorne/hinten)
+        if (xInChunk === 0) rebuild(mainChunkX - 1, mainChunkY, mainChunkZ);
+        if (xInChunk === CHUNK_SIZE - 1) rebuild(mainChunkX + 1, mainChunkY, mainChunkZ);
+        if (zInChunk === 0) rebuild(mainChunkX, mainChunkY, mainChunkZ - 1);
+        if (zInChunk === CHUNK_SIZE - 1) rebuild(mainChunkX, mainChunkY, mainChunkZ + 1);
+
+        // Vertikale Nachbarn (oben/unten) - wichtig für das Graben nach unten/oben
+        if (yInChunk === 0) rebuild(mainChunkX, mainChunkY - 1, mainChunkZ);
+        if (yInChunk === CHUNK_SIZE - 1) rebuild(mainChunkX, mainChunkY + 1, mainChunkZ);
     }
 
     getIntersectableMeshes() {

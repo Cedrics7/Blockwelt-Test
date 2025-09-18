@@ -303,6 +303,8 @@ gameCanvas.addEventListener('click', () => {
 });
 
 
+// Split/js/main.js
+
 window.addEventListener('mousedown', (e) => {
     if (!gameRunning || !controls || !controls.isLocked) return;
 
@@ -317,28 +319,38 @@ window.addEventListener('mousedown', (e) => {
         const pos = new THREE.Vector3().copy(intersection.point);
         const normal = intersection.face.normal.clone();
 
-        if (e.button === 0) { // Block abbauen
+        if (e.button === 0) { // === BLOCK ABBAUEN ===
+            // Gehe einen halben Schritt VOM Block weg, um die Koordinate des Blocks zu bekommen
             pos.sub(normal.multiplyScalar(0.5));
             const blockPos = { x: Math.floor(pos.x), y: Math.floor(pos.y), z: Math.floor(pos.z) };
             const blockType = world.getBlock(blockPos.x, blockPos.y, blockPos.z);
+
             if (blockType !== CONSTANTS.BLOCK_TYPES.AIR && blockType !== CONSTANTS.BLOCK_TYPES.LAVA) {
                 player.addItem(blockType, 1);
                 world.setBlock(blockPos.x, blockPos.y, blockPos.z, CONSTANTS.BLOCK_TYPES.AIR);
+                // Wichtig: Übergebe die exakten Koordinaten des entfernten Blocks
                 chunkManager.rebuildChunkAt(blockPos.x, blockPos.y, blockPos.z, assets.materials, assets.grassMaterials);
                 updateFullUI(player, assets.textureDataURLs, CONSTANTS.BLOCK_TYPES);
             }
-        } else if (e.button === 2) { // Block platzieren
+        } else if (e.button === 2) { // === BLOCK PLATZIEREN ===
             const item = player.inventory[player.selectedHotbarSlot];
             if (!item || item.type === CONSTANTS.BLOCK_TYPES.AIR || item.count <= 0) return;
-            const blockToPlace = item.type;
+
+            // Gehe einen halben Schritt ZUM Block hin, um die Koordinate der neuen Position zu bekommen
             pos.add(normal.multiplyScalar(0.5));
-            const nbp = new THREE.Vector3(Math.floor(pos.x), Math.floor(pos.y), Math.floor(pos.z));
+            const newBlockPos = { x: Math.floor(pos.x), y: Math.floor(pos.y), z: Math.floor(pos.z) };
+
             const pBox = player.getBoundingBox();
-            const nBBox = new THREE.Box3(nbp, new THREE.Vector3(nbp.x + 1, nbp.y + 1, nbp.z + 1));
+            const nBBox = new THREE.Box3(
+                new THREE.Vector3(newBlockPos.x, newBlockPos.y, newBlockPos.z),
+                new THREE.Vector3(newBlockPos.x + 1, newBlockPos.y + 1, newBlockPos.z + 1)
+            );
+
             if (!pBox.intersectsBox(nBBox)) {
                 if (player.removeItem(player.selectedHotbarSlot, 1)) {
-                    world.setBlock(nbp.x, nbp.y, nbp.z, blockToPlace);
-                    chunkManager.rebuildChunkAt(nbp.x, nbp.y, nbp.z, assets.materials, assets.grassMaterials);
+                    world.setBlock(newBlockPos.x, newBlockPos.y, newBlockPos.z, item.type);
+                    // Wichtig: Übergebe die exakten Koordinaten des neuen Blocks
+                    chunkManager.rebuildChunkAt(newBlockPos.x, newBlockPos.y, newBlockPos.z, assets.materials, assets.grassMaterials);
                     updateFullUI(player, assets.textureDataURLs, CONSTANTS.BLOCK_TYPES);
                 }
             }
