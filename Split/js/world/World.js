@@ -1,4 +1,4 @@
-import { createNoise2D, createNoise3D } from 'simplex-noise';
+import { createNoise3D } from 'simplex-noise';
 import { BLOCK_TYPES, ORE_PARAMETERS, WORLD_SIZE_X, WORLD_SIZE_Y, WORLD_SIZE_Z, WORLD_MIN_Y } from '../constants.js';
 
 export class World {
@@ -12,17 +12,15 @@ export class World {
 
     generate() {
         const noise3D = createNoise3D(Math.random);
-        const surfaceLevel = 10; // Durchschnittliche Höhe der Oberfläche
-        const stoneThreshold = 0; // Dichtewert, ab dem Stein generiert wird
+        const surfaceLevel = 10;
+        const stoneThreshold = 0;
 
-        // --- Schritt 1: Erschaffe die Grundform der Welt mit 3D-Noise ---
+        // Schritt 1: Erschaffe die Grundform der Welt mit 3D-Noise für Höhlen
         for (let x = 0; x < WORLD_SIZE_X; x++) {
             for (let z = 0; z < WORLD_SIZE_Z; z++) {
                 for (let y = WORLD_MIN_Y; y < WORLD_SIZE_Y + WORLD_MIN_Y; y++) {
                     const noiseScale = 80;
                     const noiseValue = noise3D(x / noiseScale, y / noiseScale, z / noiseScale);
-
-                    // Vertikaler Dichte-Gradient: Je tiefer, desto solider
                     const density = noiseValue + (surfaceLevel - y) * 0.05;
 
                     if (density > stoneThreshold) {
@@ -32,36 +30,31 @@ export class World {
             }
         }
 
-        // --- Schritt 2: Füge eine Oberflächenschicht aus Gras, Erde und Sand hinzu ---
+        // Schritt 2: Füge eine Oberflächenschicht hinzu (Gras, Erde, Sand)
         const seaLevel = 0;
         for (let x = 0; x < WORLD_SIZE_X; x++) {
             for (let z = 0; z < WORLD_SIZE_Z; z++) {
-                // Gehe von oben nach unten durch jede Spalte
                 for (let y = (WORLD_SIZE_Y + WORLD_MIN_Y) - 1; y > WORLD_MIN_Y; y--) {
                     const currentBlock = this.getBlock(x, y, z);
                     const blockAbove = this.getBlock(x, y + 1, z);
 
-                    // Finde den obersten Steinblock, der an Luft grenzt
                     if (currentBlock === BLOCK_TYPES.STONE && blockAbove === BLOCK_TYPES.AIR) {
-                        // Wenn der Block nahe am Meeresspiegel ist, erstelle einen Strand
                         if (y < seaLevel + 2) {
                             this.setBlock(x, y, z, BLOCK_TYPES.SAND);
                             this.setBlock(x, y - 1, z, BLOCK_TYPES.SAND);
-                            this.setBlock(x, y - 2, z, BLOCK_TYPES.SAND);
                         } else {
-                            // Ansonsten, erstelle eine normale Gras/Erde-Oberfläche
                             this.setBlock(x, y, z, BLOCK_TYPES.GRASS);
                             this.setBlock(x, y - 1, z, BLOCK_TYPES.DIRT);
                             this.setBlock(x, y - 2, z, BLOCK_TYPES.DIRT);
                         }
-                        break; // Gehe zur nächsten (x, z)-Spalte, da die Oberfläche gefunden wurde
+                        break;
                     }
                 }
             }
         }
 
         this.generateOres();
-    } // <-- Die generate()-Funktion endet HIER
+    }
 
     generateOres() {
         for (const ore of ORE_PARAMETERS) {

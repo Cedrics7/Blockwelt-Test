@@ -1,10 +1,10 @@
 import * as THREE from 'three';
 import { BLOCK_TYPES, CHUNK_SIZE, WORLD_MIN_Y } from '../constants.js';
 
-// KORREKTUR: Diese neue Funktion prüft, ob ein Block transparent ist.
 function isBlockTransparent(blockType) {
     return blockType === BLOCK_TYPES.AIR || blockType === BLOCK_TYPES.LAVA;
 }
+
 export class Chunk {
     constructor(scene, chunkX, chunkY, chunkZ, blockGeometry) {
         this.x = chunkX;
@@ -19,7 +19,7 @@ export class Chunk {
 
     build(world, materials, grassMaterials) {
         const counts = {};
-        for (const t in materials) counts[t] = 0;
+        for (const t in materials) { if (materials.hasOwnProperty(t)) counts[t] = 0; }
         const matrix = new THREE.Matrix4();
         const startX = this.x * CHUNK_SIZE, endX = startX + CHUNK_SIZE;
         const startY = this.y * CHUNK_SIZE + WORLD_MIN_Y, endY = startY + CHUNK_SIZE;
@@ -28,12 +28,9 @@ export class Chunk {
         for (let x = startX; x < endX; x++) {
             for (let y = startY; y < endY; y++) {
                 for (let z = startZ; z < endZ; z++) {
-// ... (Schleifen für x, y, z) ...
                     const blockType = world.getBlock(x, y, z);
                     if (blockType === BLOCK_TYPES.AIR) continue;
 
-// KORREKTUR: Wir verwenden jetzt die neue Funktion, um zu prüfen,
-// ob ein Nachbarblock transparent ist (Luft ODER Lava).
                     const isVisible =
                         isBlockTransparent(world.getBlock(x + 1, y, z)) ||
                         isBlockTransparent(world.getBlock(x - 1, y, z)) ||
@@ -52,7 +49,6 @@ export class Chunk {
                         matrix.setPosition(x + 0.5, y + 0.5, z + 0.5);
                         if (!this.meshes[blockType]) {
                             this.meshes[blockType] = new THREE.InstancedMesh(this.blockGeometry, materials[blockType], CHUNK_SIZE * CHUNK_SIZE * CHUNK_SIZE);
-                            this.meshes[blockType].name = `chunk_${this.x},${this.y},${this.z}_type_${blockType}`;
                         }
                         this.meshes[blockType].setMatrixAt(counts[blockType]++, matrix);
                     }
@@ -99,8 +95,6 @@ export class Chunk {
     }
 
     getIntersectables() {
-        const intersectables = Object.values(this.meshes);
-        intersectables.push(...this.grassMeshes);
-        return intersectables;
+        return [...Object.values(this.meshes), ...this.grassMeshes];
     }
 }
