@@ -1,6 +1,8 @@
 import * as THREE from 'three';
 import { BLOCK_TYPES, WORLD_SIZE_X, WORLD_SIZE_Z, VOID_DEATH_Y, INVENTORY_SIZE, MAX_STACK_SIZE } from '../constants.js';
 
+// ... (imports)
+
 export class Player {
     constructor(world) {
         this.world = world;
@@ -15,8 +17,20 @@ export class Player {
         this.width = 0.6;
         this.selectedHotbarSlot = 0;
         this.inventory = Array(INVENTORY_SIZE).fill(null).map(() => ({ type: BLOCK_TYPES.AIR, count: 0 }));
-        this.isDead = false; // NEU: Status für den Tod
+        this.isDead = false;
+        this.health = 20;
+        this.maxHealth = 20;
+        this.fallVelocity = 0;
     }
+
+    takeDamage(amount) {
+        this.health -= amount;
+        if (this.health <= 0) {
+            this.health = 0;
+            this.isDead = true;
+        }
+    }
+
 
     setState(playerData) {
         this.pos.set(playerData.pos.x, playerData.pos.y, playerData.pos.z);
@@ -85,53 +99,35 @@ export class Player {
     }
 
     update(dt, keys, camera) {
-        // KORREKTUR: Todesbedingungen prüfen
-        const feetY = Math.floor(this.pos.y - 0.1);
-        if (this.pos.y < VOID_DEATH_Y || this.world.getBlock(Math.floor(this.pos.x), feetY, Math.floor(this.pos.z)) === BLOCK_TYPES.LAVA) {
+        const onGround = this.on_ground();
+
+        if (this.pos.y < VOID_DEATH_Y || this.world.getBlock(Math.floor(this.pos.x), Math.floor(this.pos.y - 0.1), Math.floor(this.pos.z)) === BLOCK_TYPES.LAVA) {
             this.isDead = true;
             return;
         }
 
-        if (keys['Space'] && this.on_ground()) { this.velocity.y = this.jump_force; }
-        if (!this.on_ground()) { this.velocity.y += this.gravity * dt; }
-        else if (this.velocity.y < 0) { this.velocity.y = 0; }
-
-        const currentSpeed = keys['ControlLeft'] ? this.sprintSpeed : this.speed;
-        const forward = new THREE.Vector3();
-        camera.getWorldDirection(forward);
-        forward.y = 0;
-        forward.normalize();
-        const right = new THREE.Vector3().crossVectors(forward, new THREE.Vector3(0, 1, 0));
-
-        let moveX = 0, moveZ = 0;
-        if (keys['KeyW']) { moveZ = 1; } if (keys['KeyS']) { moveZ = -1; }
-        if (keys['KeyA']) { moveX = -1; } if (keys['KeyD']) { moveX = 1; }
-
-        const wishDirection = new THREE.Vector3().addScaledVector(forward, moveZ).addScaledVector(right, moveX);
-        if (wishDirection.lengthSq() > 0) {
-            wishDirection.normalize();
-            this.velocity.x = wishDirection.x * currentSpeed;
-            this.velocity.z = wishDirection.z * currentSpeed;
+        if (!onGround) {
+            this.velocity.y += this.gravity * dt;
+            this.fallVelocity = this.velocity.y; // Speichere die Fallgeschwindigkeit
         } else {
-            this.velocity.x = 0;
-            this.velocity.z = 0;
+            if (this.fallVelocity < -8) { // Schwellenwert für Fallschaden
+                const damage = Math.floor(Math.abs(this.fallVelocity) - 7);
+                this.takeDamage(damage);
+            }
+            this.fallVelocity = 0;
+            if (this.velocity.y < 0) this.velocity.y = 0;
         }
 
-        const deltaPos = this.velocity.clone().multiplyScalar(dt);
-        this.pos.y += deltaPos.y; if (this.is_colliding(this.pos)) { this.pos.y -= deltaPos.y; this.velocity.y = 0; }
-        this.pos.x += deltaPos.x; if (this.is_colliding(this.pos)) { this.pos.x -= deltaPos.x; }
-        this.pos.z += deltaPos.z; if (this.is_colliding(this.pos)) { this.pos.z -= deltaPos.z; }
+        if (keys['Space'] && onGround) { this.velocity.y = this.jump_force; }
 
-        this.pos.x = Math.max(0.5, Math.min(this.pos.x, WORLD_SIZE_X - 0.5));
-        this.pos.z = Math.max(0.5, Math.min(this.pos.z, WORLD_SIZE_Z - 0.5));
+        // ... (Bewegungslogik)
 
         camera.position.copy(this.get_camera_position());
     }
 
-    // NEU: Respawn-Methode
     respawn() {
-        this.pos.set(WORLD_SIZE_X / 2, 100, WORLD_SIZE_Z / 2);
-        this.velocity.set(0, 0, 0);
+        this.health = this.maxHealth;
         this.isDead = false;
+        this.velocity.set(0, 0, 0);
     }
 }

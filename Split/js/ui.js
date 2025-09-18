@@ -34,8 +34,16 @@ export function setupGameUI(inventorySize) {
     }
 }
 
+export function updateHealthBar(player) {
+    const healthBar = document.getElementById('health-bar');
+    if (!healthBar || !player) return;
+    const healthPercentage = (player.health / player.maxHealth) * 100;
+    healthBar.style.width = `${healthPercentage}%`;
+}
+
 export function updateFullUI(player, textureDataURLs, blockTypes) {
     if (!player || !textureDataURLs) return;
+    updateHealthBar(player); // Gesundheitsleiste hier aktualisieren
 
     const hotbarSlots = document.querySelectorAll('#hotbar .slot');
     const inventorySlots = document.querySelectorAll('#inventory-grid .slot');

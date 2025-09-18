@@ -42,7 +42,7 @@ const crosshair = document.getElementById('crosshair');
 const viewDistSlider = document.getElementById('view-distance-slider');
 const viewDistValue = document.getElementById('view-distance-value');
 const texQualitySelect = document.getElementById('texture-quality-select');
-
+const healthBarContainer = document.getElementById('health-bar-container');
 // --- Haupt-Spiellogik ---
 
 async function initGame(isNew, loadedData) {
@@ -67,7 +67,14 @@ async function initGame(isNew, loadedData) {
     entityManager = new EntityManager(scene, world);
     if (isNew) {
         loadingText.textContent = 'Welt wird generiert...';
-        await new Promise(resolve => setTimeout(() => { world.init(); world.generate(); resolve(); }, 50));
+        await new Promise(resolve => setTimeout(() => {
+            world.init();
+            world.generate();
+            const spawnX = CONSTANTS.WORLD_SIZE_X / 2;
+            const spawnZ = CONSTANTS.WORLD_SIZE_Z / 2;
+            player.pos.set(spawnX, world.getSurfaceY(spawnX, spawnZ), spawnZ);
+            resolve();
+        }, 50));
     } else {
         loadingText.textContent = 'Welt wird geladen...';
         world.init(loadedData.worldData);
@@ -83,6 +90,7 @@ async function initGame(isNew, loadedData) {
     showUI(gameCanvas);
     showUI(hotbarDiv);
     showUI(crosshair);
+    showUI(healthBarContainer); // Gesundheitsleiste einblenden
     setupGameUI(CONSTANTS.INVENTORY_SIZE);
     updateFullUI(player, assets.textureDataURLs, CONSTANTS.BLOCK_TYPES);
 
@@ -97,8 +105,37 @@ async function initGame(isNew, loadedData) {
 }
 
 // ... (animate, handlePlayerDeath, quitToMainMenu bleiben unverändert)
-function animate() { if (!gameRunning) return; gameLoopId = requestAnimationFrame(animate); const dt = clock.getDelta(); if (!isPaused && !isPlayerDead) { player.update(dt, keys, camera); if (player.isDead) { handlePlayerDeath(); } else { entityManager.update(dt, player); chunkManager.update(player.pos, assets.materials, assets.grassMaterials, settingsManager.settings); } } if (renderer && scene && camera) { renderer.render(scene, camera); } }
-function handlePlayerDeath() { if (isPlayerDead) return; isPlayerDead = true; controls.unlock(); deathScreen.textContent = "Du bist gestorben!"; showUI(deathScreen); setTimeout(() => { hideUI(deathScreen); player.respawn(); isPlayerDead = false; controls.lock(); }, 2000); }
+function animate() { if (!gameRunning) return; gameLoopId = requestAnimationFrame(animate); const dt = clock.getDelta();
+    if (!isPaused && !isPlayerDead) {
+        player.update(dt, keys, camera);
+
+        if (player.isDead) {
+            handlePlayerDeath();
+        } else {
+            entityManager.update(dt, player);
+            chunkManager.update(player.pos, assets.materials, assets.grassMaterials, settingsManager.settings);
+            updateFullUI(player, assets.textureDataURLs, CONSTANTS.BLOCK_TYPES); // UI-Update
+        }
+    }
+ if (renderer && scene && camera) { renderer.render(scene, camera); } }
+
+function handlePlayerDeath() {
+    if (isPlayerDead) return;
+    isPlayerDead = true;
+    controls.unlock();
+    deathScreen.textContent = "Du bist gestorben!";
+    showUI(deathScreen);
+    setTimeout(() => {
+        hideUI(deathScreen);
+        const respawnX = Math.floor(Math.random() * CONSTANTS.WORLD_SIZE_X);
+        const respawnZ = Math.floor(Math.random() * CONSTANTS.WORLD_SIZE_Z);
+        const respawnY = world.getSurfaceY(respawnX, respawnZ);
+        player.pos.set(respawnX + 0.5, respawnY, respawnZ + 0.5);
+        player.respawn();
+        isPlayerDead = false;
+        // controls.lock(); // Optional: Spiel direkt fortsetzen
+    }, 2000);
+}
 function quitToMainMenu() { gameRunning = false; isPaused = false; if (gameLoopId) cancelAnimationFrame(gameLoopId); if (controls) controls.unlock(); if (scene) { while (scene.children.length > 0) { scene.remove(scene.children[0]); } } hideUI(gameCanvas); hideUI(hotbarDiv); hideUI(crosshair); hideUI(pauseMenu); hideUI(inventoryScreen); hideUI(deathScreen); showUI(mainMenu); dbManager.hasSaveGame().then(hasSave => { document.getElementById('load-world-btn').disabled = !hasSave; }); }
 
 

@@ -78,6 +78,15 @@ export class World {
             c.z += Math.floor(Math.random() * 3) - 1;
         }
     }
+    getSurfaceY(x, z) {
+        for (let y = (WORLD_SIZE_Y + WORLD_MIN_Y) - 1; y > WORLD_MIN_Y; y--) {
+            const block = this.getBlock(Math.floor(x), y, Math.floor(z));
+            if (block !== BLOCK_TYPES.AIR) {
+                return y + 1;
+            }
+        }
+        return WORLD_MIN_Y;
+    }
 
     coordToIndex(x, y, z) {
         const wY = y - WORLD_MIN_Y;

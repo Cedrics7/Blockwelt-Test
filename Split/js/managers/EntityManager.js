@@ -33,22 +33,17 @@ export class EntityManager {
         const z = Math.floor(playerPos.z + Math.sin(angle) * radius);
         if (x < 0 || x >= WORLD_SIZE_X || z < 0 || z >= WORLD_SIZE_Z) return;
 
-        let groundY = 0;
-        for (let y = Math.floor(playerPos.y) + 10; y > WORLD_MIN_Y; y--) {
-            const blockBelow = this.world.getBlock(x, y - 1, z);
-            const blockAt = this.world.getBlock(x, y, z);
-            const blockAbove = this.world.getBlock(x, y + 1, z);
-            if ((blockBelow === BLOCK_TYPES.GRASS || blockBelow === BLOCK_TYPES.SAND) && blockAt === BLOCK_TYPES.AIR && blockAbove === BLOCK_TYPES.AIR) {
-                groundY = y;
-                break;
-            }
-        }
+        const groundY = this.world.getSurfaceY(x, z);
+
         if (groundY > WORLD_MIN_Y) {
             const pos = new THREE.Vector3(x + 0.5, groundY, z + 0.5);
-            const entityType = this.world.getBlock(x, groundY - 1, z) === BLOCK_TYPES.SAND ? Pig : (Math.random() > 0.5 ? Pig : Skeleton);
+            const blockBelow = this.world.getBlock(x, groundY - 1, z);
+            if (blockBelow === BLOCK_TYPES.GRASS || blockBelow === BLOCK_TYPES.SAND) {
+                const entityType = blockBelow === BLOCK_TYPES.SAND ? Pig : (Math.random() > 0.5 ? Pig : Skeleton);
 
-            if (entityType === Pig) this.entities.push(new Pig(this.scene, this.world, pos));
-            else this.entities.push(new Skeleton(this.scene, this.world, pos));
+                if (entityType === Pig) this.entities.push(new Pig(this.scene, this.world, pos));
+                else this.entities.push(new Skeleton(this.scene, this.world, pos));
+            }
         }
     }
 }

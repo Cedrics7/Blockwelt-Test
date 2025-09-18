@@ -2,7 +2,7 @@ export class SettingsManager {
     constructor() {
         this.settings = {
             viewDistance: 4,
-            textureQuality: 'medium'
+            textureQuality: 'low' // Geändert von 'medium'
         };
         this.load();
     }
