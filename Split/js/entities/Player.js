@@ -1,0 +1,136 @@
+import * as THREE from 'three';
+import { BLOCK_TYPES, WORLD_SIZE_X, WORLD_SIZE_Z, VOID_DEATH_Y, INVENTORY_SIZE, MAX_STACK_SIZE } from '../constants.js';
+
+export class Player {
+    constructor(world) {
+        this.world = world;
+        this.pos = new THREE.Vector3(WORLD_SIZE_X / 2, 100, WORLD_SIZE_Z / 2);
+        this.velocity = new THREE.Vector3();
+        this.speed = 5.0;
+        this.sprintSpeed = 9.0;
+        this.jump_force = 8.0;
+        this.gravity = -25.0;
+        this.height = 1.75;
+        this.eye_height = 1.65;
+        this.width = 0.6;
+        this.selectedHotbarSlot = 0;
+        this.inventory = Array(INVENTORY_SIZE).fill(null).map(() => ({ type: BLOCK_TYPES.AIR, count: 0 }));
+        this.isDead = false;
+    }
+
+    setState(playerData) {
+        this.pos.set(playerData.pos.x, playerData.pos.y, playerData.pos.z);
+        this.inventory = playerData.inventory;
+    }
+
+    getState() {
+        return { pos: { x: this.pos.x, y: this.pos.y, z: this.pos.z }, inventory: this.inventory };
+    }
+
+    addItem(type, count) {
+        for (let i = 0; i < INVENTORY_SIZE; i++) {
+            const item = this.inventory[i];
+            if (item.type === type && item.count < MAX_STACK_SIZE) {
+                const canAdd = Math.min(count, MAX_STACK_SIZE - item.count);
+                item.count += canAdd;
+                count -= canAdd;
+                if (count === 0) return true;
+            }
+        }
+        for (let i = 0; i < INVENTORY_SIZE; i++) {
+            if (this.inventory[i].type === BLOCK_TYPES.AIR) {
+                this.inventory[i] = { type, count };
+                return true;
+            }
+        }
+        return false;
+    }
+
+    removeItem(slotIndex, count) {
+        const item = this.inventory[slotIndex];
+        if (item && item.type !== BLOCK_TYPES.AIR && item.count > 0) {
+            item.count -= count;
+            if (item.count <= 0) {
+                item.type = BLOCK_TYPES.AIR;
+                item.count = 0;
+            }
+            return true;
+        }
+        return false;
+    }
+
+    get_camera_position() {
+        return new THREE.Vector3(this.pos.x, this.pos.y + this.eye_height, this.pos.z);
+    }
+
+    getBoundingBox() {
+        const hw = this.width / 2;
+        return new THREE.Box3(new THREE.Vector3(this.pos.x - hw, this.pos.y, this.pos.z - hw), new THREE.Vector3(this.pos.x + hw, this.pos.y + this.height, this.pos.z + hw));
+    }
+
+    is_colliding(pos) {
+        const hw = this.width / 2;
+        for (let y = Math.floor(pos.y); y < pos.y + this.height; y++) {
+            for (let x = Math.floor(pos.x - hw); x <= Math.floor(pos.x + hw); x++) {
+                for (let z = Math.floor(pos.z - hw); z <= Math.floor(pos.z + hw); z++) {
+                    if (this.world.isBlockAt(x, y, z)) return true;
+                }
+            }
+        }
+        return false;
+    }
+
+    on_ground() {
+        return this.is_colliding(new THREE.Vector3(this.pos.x, this.pos.y - 0.01, this.pos.z));
+    }
+
+    update(dt, keys, camera) {
+        // Todesbedingungen prüfen
+        const feetY = Math.floor(this.pos.y - 0.1);
+        if (this.pos.y < VOID_DEATH_Y || this.world.getBlock(Math.floor(this.pos.x), feetY, Math.floor(this.pos.z)) === BLOCK_TYPES.LAVA) {
+            this.isDead = true;
+            return;
+        }
+
+        if (keys['Space'] && this.on_ground()) { this.velocity.y = this.jump_force; }
+        if (!this.on_ground()) { this.velocity.y += this.gravity * dt; }
+        else if (this.velocity.y < 0) { this.velocity.y = 0; }
+
+        const currentSpeed = keys['ControlLeft'] ? this.sprintSpeed : this.speed;
+        const forward = new THREE.Vector3();
+        camera.getWorldDirection(forward);
+        forward.y = 0;
+        forward.normalize();
+        const right = new THREE.Vector3().crossVectors(forward, new THREE.Vector3(0, 1, 0));
+
+        let moveX = 0, moveZ = 0;
+        if (keys['KeyW']) { moveZ = 1; } if (keys['KeyS']) { moveZ = -1; }
+        if (keys['KeyA']) { moveX = -1; } if (keys['KeyD']) { moveX = 1; }
+
+        const wishDirection = new THREE.Vector3().addScaledVector(forward, moveZ).addScaledVector(right, moveX);
+        if (wishDirection.lengthSq() > 0) {
+            wishDirection.normalize();
+            this.velocity.x = wishDirection.x * currentSpeed;
+            this.velocity.z = wishDirection.z * currentSpeed;
+        } else {
+            this.velocity.x = 0;
+            this.velocity.z = 0;
+        }
+
+        const deltaPos = this.velocity.clone().multiplyScalar(dt);
+        this.pos.y += deltaPos.y; if (this.is_colliding(this.pos)) { this.pos.y -= deltaPos.y; this.velocity.y = 0; }
+        this.pos.x += deltaPos.x; if (this.is_colliding(this.pos)) { this.pos.x -= deltaPos.x; }
+        this.pos.z += deltaPos.z; if (this.is_colliding(this.pos)) { this.pos.z -= deltaPos.z; }
+
+        this.pos.x = Math.max(0.5, Math.min(this.pos.x, WORLD_SIZE_X - 0.5));
+        this.pos.z = Math.max(0.5, Math.min(this.pos.z, WORLD_SIZE_Z - 0.5));
+
+        camera.position.copy(this.get_camera_position());
+    }
+
+    respawn() {
+        this.pos.set(WORLD_SIZE_X / 2, 100, WORLD_SIZE_Z / 2);
+        this.velocity.set(0, 0, 0);
+        this.isDead = false;
+    }
+}

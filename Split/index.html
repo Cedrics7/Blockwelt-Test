@@ -1,0 +1,70 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Blockwelt Spiel</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div id="main-menu" class="menu">
+  <h1>Blockwelt Spiel</h1>
+  <button id="new-world-btn">Neue Welt erstellen</button>
+  <button id="load-world-btn">Welt laden</button>
+  <button id="settings-btn">Einstellungen</button>
+</div>
+
+<div id="settings-menu" class="menu" style="display: none;">
+  <h1>Einstellungen</h1>
+  <div class="settings-option">
+    <label for="view-distance-slider">Sichtweite (Chunks):</label>
+    <input type="range" id="view-distance-slider" min="2" max="8" value="4">
+    <span id="view-distance-value">4</span>
+  </div>
+  <div class="settings-option">
+    <label for="texture-quality-select">Texturqualität:</label>
+    <select id="texture-quality-select">
+      <option value="low">Niedrig (16x)</option>
+      <option value="medium">Mittel (32x)</option>
+      <option value="high">Hoch (64x)</option>
+      <option value="very-high">Sehr Hoch (128x)</option>
+      <option value="ultra">Ultra (256x)</option>
+    </select>
+  </div>
+  <p style="font-size: 0.8em; color: #ccc;">Änderungen werden live angewendet.</p>
+  <button id="back-btn">Zurück</button>
+</div>
+
+<div id="pause-menu" class="menu" style="display: none;">
+  <h1>Pause</h1>
+  <button id="resume-btn">Fortsetzen</button>
+  <button id="save-btn">Spiel speichern</button>
+  <button id="settings-pause-btn">Einstellungen</button>
+  <button id="quit-to-main-btn">Verlassen</button>
+</div>
+
+<div id="loading-overlay" class="overlay" style="display: none;">
+  <h2 id="loading-text">Welt wird generiert...</h2>
+  <p>Dies kann einen Moment dauern.</p>
+</div>
+
+<div id="crosshair"></div>
+<div id="death-screen"></div>
+<div id="hotbar"></div>
+<div id="inventory-screen"><div id="inventory-grid"></div></div>
+
+<canvas id="game-canvas"></canvas>
+
+<script type="importmap">
+  {
+      "imports": {
+          "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+          "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/",
+          "simplex-noise": "https://cdn.jsdelivr.net/npm/simplex-noise@4.0.1/dist/esm/simplex-noise.js"
+      }
+  }
+</script>
+
+<script type="module" src="js/main.js"></script>
+</body>
+</html>
