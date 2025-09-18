@@ -1,3 +1,4 @@
+import { ItemEntity } from './entities/ItemEntity.js';
 import * as THREE from 'three';
 import { PointerLockControls } from 'three/addons/controls/PointerLockControls.js';
 
@@ -44,11 +45,34 @@ const viewDistValue = document.getElementById('view-distance-value');
 const texQualitySelect = document.getElementById('texture-quality-select');
 const healthBarContainer = document.getElementById('health-bar-container');
 const raycaster = new THREE.Raycaster();
-
-// NEU: Warteschlange für den Blattverfall
+// Oben bei den globalen Variablen
 const decayQueue = new Set();
+const grassConversionQueue = new Map(); // NEU
 let isProcessingDecay = false;
-// --- Haupt-Spiellogik ---
+const saplingGrowthQueue = new Map(); // NEU
+
+function processGrassConversion() {
+    if (grassConversionQueue.size === 0) return;
+
+    const conversionTime = 10000; // 10 Sekunden
+    const now = Date.now();
+
+    for (const [key, startTime] of grassConversionQueue.entries()) {
+        if (now - startTime > conversionTime) {
+            const [x, y, z] = key.split(',').map(Number);
+
+            // Prüfen, ob der Block darüber noch da ist und der untere Block noch Gras ist
+            const blockAbove = world.getBlock(x, y + 1, z);
+            const currentBlock = world.getBlock(x, y, z);
+
+            if (blockAbove !== CONSTANTS.BLOCK_TYPES.AIR && currentBlock === CONSTANTS.BLOCK_TYPES.GRASS) {
+                world.setBlock(x, y, z, CONSTANTS.BLOCK_TYPES.DIRT);
+                chunkManager.rebuildChunkAt(x, y, z, assets.materials, assets.grassMaterials);
+            }
+            grassConversionQueue.delete(key);
+        }
+    }
+}
 
 async function initGame(isNew, loadedData) {
     // ... (initGame bleibt größtenteils gleich)
@@ -110,19 +134,45 @@ async function initGame(isNew, loadedData) {
 }
 
 // ... (animate, handlePlayerDeath, quitToMainMenu bleiben unverändert)
-function animate() { if (!gameRunning) return; gameLoopId = requestAnimationFrame(animate); const dt = clock.getDelta();
+function animate() {
+    if (!gameRunning) return;
+    processSaplingGrowth(); // NEUER AUFRUF
+    gameLoopId = requestAnimationFrame(animate);
+    const dt = clock.getDelta();
     if (!isPaused && !isPlayerDead) {
         player.update(dt, keys, camera);
 
         if (player.isDead) {
             handlePlayerDeath();
         } else {
-            entityManager.update(dt, player);
+            entityManager.entities.forEach((entity, index) => {
+                // ALT: entity.update(dt, player.pos);
+                // NEU: Kamera für Billboard-Effekt übergeben
+                entity.update(dt, player, camera);
+
+                // NEU: Aufgesammelte oder despawnte Items entfernen
+                if (entity.shouldBeRemoved) {
+                    entity.remove();
+                    entityManager.entities.splice(index, 1);
+                    updateFullUI(player, assets.textureDataURLs, CONSTANTS.BLOCK_TYPES); // UI aktualisieren
+                }
+
+                const distance = entity.pos.distanceTo(player.pos);
+                // Verhindere, dass Items zu früh despawnen
+                if (distance > entityManager.spawnRadius + 40 && !(entity instanceof ItemEntity)) {
+                    entity.remove();
+                    entityManager.entities.splice(index, 1);
+                }
+            });
             chunkManager.update(player.pos, assets.materials, assets.grassMaterials, settingsManager.settings);
-            updateFullUI(player, assets.textureDataURLs, CONSTANTS.BLOCK_TYPES); // UI-Update
+            processGrassConversion(); // NEUER AUFRUF
+            updateFullUI(player, assets.textureDataURLs, CONSTANTS.BLOCK_TYPES);
         }
     }
- if (renderer && scene && camera) { renderer.render(scene, camera); } }
+    if (renderer && scene && camera) {
+        renderer.render(scene, camera);
+    }
+}
 
 function handlePlayerDeath() {
     if (isPlayerDead) return;
@@ -315,6 +365,15 @@ function initializeInventoryListeners() {
                     player.addItem(blockType, 1);
                     world.setBlock(blockPos.x, blockPos.y, blockPos.z, CONSTANTS.BLOCK_TYPES.AIR);
 
+                    // NEU: Setzling-Drop beim Abbauen
+                    if (blockType === CONSTANTS.BLOCK_TYPES.LEAVES && Math.random() < 0.05) { // 5% Chance
+                        const dropPos = new THREE.Vector3(blockPos.x + 0.5, blockPos.y + 0.5, blockPos.z + 0.5);
+                        entityManager.spawnItemEntity(dropPos, CONSTANTS.BLOCK_TYPES.SAPLING, assets.materials[CONSTANTS.BLOCK_TYPES.SAPLING].map);
+                    }
+
+                    if (blockType === CONSTANTS.BLOCK_TYPES.WOOD || blockType === CONSTANTS.BLOCK_TYPES.LEAVES) {
+                        checkAdjacentLeaves(blockPos.x, blockPos.y, blockPos.z);
+                    }
                     // Trigger für Blattverfall, wenn Holz oder Blätter abgebaut werden
                     if (blockType === CONSTANTS.BLOCK_TYPES.WOOD || blockType === CONSTANTS.BLOCK_TYPES.LEAVES) {
                         checkAdjacentLeaves(blockPos.x, blockPos.y, blockPos.z);
@@ -338,9 +397,31 @@ function initializeInventoryListeners() {
                     new THREE.Vector3(newBlockPos.x + 1, newBlockPos.y + 1, newBlockPos.z + 1)
                 );
 
-                // Stelle sicher, dass der Platz frei ist und der Spieler nicht im Weg ist
+                // In der 'mousedown' Funktion für Rechtsklicks (e.button === 2)
+
+                // Im mousedown-Listener für Rechtsklick (e.button === 2)
                 if (!pBox.intersectsBox(nBBox) && world.getBlock(newBlockPos.x, newBlockPos.y, newBlockPos.z) === CONSTANTS.BLOCK_TYPES.AIR) {
-                    world.setBlock(newBlockPos.x, newBlockPos.y, newBlockPos.z, item.type);
+                    // NEU: Logik zum Pflanzen von Setzlingen
+                    if (item.type === CONSTANTS.BLOCK_TYPES.SAPLING) {
+                        const groundBlock = world.getBlock(newBlockPos.x, newBlockPos.y - 1, newBlockPos.z);
+                        if (groundBlock === CONSTANTS.BLOCK_TYPES.GRASS || groundBlock === CONSTANTS.BLOCK_TYPES.DIRT) {
+                            world.setBlock(newBlockPos.x, newBlockPos.y, newBlockPos.z, item.type);
+                            player.removeItem(player.selectedHotbarSlot, 1);
+                            // Zum Wachstums-Prozess hinzufügen
+                            const key = `${newBlockPos.x},${newBlockPos.y},${newBlockPos.z}`;
+                            saplingGrowthQueue.set(key, Date.now());
+                            chunkManager.rebuildChunkAt(newBlockPos.x, newBlockPos.y, newBlockPos.z, assets.materials, assets.grassMaterials);
+                            updateFullUI(player, assets.textureDataURLs, CONSTANTS.BLOCK_TYPES);
+                        }
+                    } else { // Die bisherige Logik für alle anderen Blöcke
+                        world.setBlock(newBlockPos.x, newBlockPos.y, newBlockPos.z, item.type);}
+                    // NEU: Gras zur Umwandlungs-Warteschlange hinzufügen
+                    const blockBelowPos = { x: newBlockPos.x, y: newBlockPos.y - 1, z: newBlockPos.z };
+                    if (world.getBlock(blockBelowPos.x, blockBelowPos.y, blockBelowPos.z) === CONSTANTS.BLOCK_TYPES.GRASS) {
+                        const key = `${blockBelowPos.x},${blockBelowPos.y},${blockBelowPos.z}`;
+                        grassConversionQueue.set(key, Date.now());
+                    }
+
                     player.removeItem(player.selectedHotbarSlot, 1);
                     chunkManager.rebuildChunkAt(newBlockPos.x, newBlockPos.y, newBlockPos.z, assets.materials, assets.grassMaterials);
                     updateFullUI(player, assets.textureDataURLs, CONSTANTS.BLOCK_TYPES);
@@ -369,6 +450,32 @@ function initializeInventoryListeners() {
         // Starte die Verarbeitung, falls sie nicht schon läuft
         if (!isProcessingDecay) {
             processDecayQueue();
+        }
+    }
+// Neue Funktion in main.js
+    function processSaplingGrowth() {
+        if (saplingGrowthQueue.size === 0) return;
+
+        const growthTime = 30000; // 30 Sekunden
+        const now = Date.now();
+
+        for (const [key, startTime] of saplingGrowthQueue.entries()) {
+            if (now - startTime > growthTime) {
+                const [x, y, z] = key.split(',').map(Number);
+                // Sicherstellen, dass dort noch ein Setzling ist
+                if (world.getBlock(x, y, z) === CONSTANTS.BLOCK_TYPES.SAPLING) {
+                    world.generateTree(x, y, z); // Diese Methode existiert bereits in World.js
+                    // Betroffene Chunks neu bauen
+                    for (let dx = -2; dx <= 2; dx++) {
+                        for (let dz = -2; dz <= 2; dz++) {
+                            for (let dy = 0; dy <= 6; dy++) {
+                                chunkManager.rebuildChunkAt(x + dx, y + dy, z + dz, assets.materials, assets.grassMaterials);
+                            }
+                        }
+                    }
+                }
+                saplingGrowthQueue.delete(key);
+            }
         }
     }
 
@@ -404,14 +511,20 @@ function initializeInventoryListeners() {
             }
         }
 
-        // Wenn kein Holz gefunden wurde, Block entfernen und Nachbarn zur Prüfung hinzufügen
         if (!hasWood) {
             world.setBlock(x, y, z, CONSTANTS.BLOCK_TYPES.AIR);
             chunkManager.rebuildChunkAt(x, y, z, assets.materials, assets.grassMaterials);
-            checkAdjacentLeaves(x, y, z); // Kettenreaktion
+
+            // NEU: Setzling-Drop beim Verfall
+            if (Math.random() < 0.05) { // 5% Chance
+                const dropPos = new THREE.Vector3(x + 0.5, y + 0.5, z + 0.5);
+                entityManager.spawnItemEntity(dropPos, CONSTANTS.BLOCK_TYPES.SAPLING, assets.materials[CONSTANTS.BLOCK_TYPES.SAPLING].map);
+            }
+
+            checkAdjacentLeaves(x, y, z);
         }
 
         // Nächste Prüfung mit kurzer Verzögerung planen
-        setTimeout(processDecayQueue, 50);
+        setTimeout(processDecayQueue, 300);
     }
 }

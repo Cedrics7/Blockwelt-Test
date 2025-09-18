@@ -82,9 +82,25 @@ export function generateAssets(settings, CONSTANTS, renderer) {
     generated[BLOCK_TYPES.LEAVES] = leavesTex;
     textureDataURLs[BLOCK_TYPES.LEAVES] = leavesURL;
 
+    const { texture: saplingTex, dataURL: saplingURL } = createCanvasTexture(size, (c, s) => {
+        c.fillStyle = '#795548'; // Stammfarbe
+        c.fillRect(s * 0.4, s * 0.5, s * 0.2, s * 0.5); // Stamm
+        c.fillStyle = '#4CAF50'; // Blattwerk-Farbe
+        c.beginPath();
+        c.arc(s * 0.5, s * 0.35, s * 0.3, 0, Math.PI * 2); // Blätter
+        c.fill();
+    });
+    generated[BLOCK_TYPES.SAPLING] = saplingTex;
+    textureDataURLs[BLOCK_TYPES.SAPLING] = saplingURL;
+
     // Materialien erstellen
     for(const key in generated) { if(key != BLOCK_TYPES.GRASS) { materials[key] = new THREE.MeshLambertMaterial({ map: generated[key] }); } }
     materials[BLOCK_TYPES.LAVA].emissive=new THREE.Color('#FF6600');materials[BLOCK_TYPES.LAVA].emissiveIntensity=0.5;
+// NEU: Setzling-Material transparent machen
+    materials[BLOCK_TYPES.SAPLING].transparent = true;
+    materials[BLOCK_TYPES.SAPLING].side = THREE.DoubleSide; // Damit man es von beiden Seiten sieht
 
+    materials[BLOCK_TYPES.LAVA].emissive=new THREE.Color('#FF6600');
+    materials[BLOCK_TYPES.LAVA].emissiveIntensity=0.5;
     return { textureDataURLs, materials, grassMaterials, blockGeometry };
 }

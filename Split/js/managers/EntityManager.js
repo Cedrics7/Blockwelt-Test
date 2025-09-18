@@ -1,7 +1,9 @@
+import { ItemEntity } from '../entities/ItemEntity.js';
 import { Pig } from '../entities/Pig.js';
 import { Skeleton } from '../entities/Skeleton.js';
 import { BLOCK_TYPES, WORLD_SIZE_X, WORLD_SIZE_Z, WORLD_MIN_Y } from '../constants.js';
 import * as THREE from 'three';
+
 
 export class EntityManager {
     constructor(scene, world) {
@@ -24,6 +26,11 @@ export class EntityManager {
         if (this.entities.length < this.maxEntities && Math.random() < 0.1) {
             this.trySpawn(player.pos);
         }
+    }
+    spawnItemEntity(pos, itemType, texture, count) {
+        const item = new ItemEntity(this.scene, this.world, pos, itemType, texture, count);
+        item.velocity.set((Math.random() - 0.5) * 2, 2, (Math.random() - 0.5) * 2);
+        this.entities.push(item);
     }
 
     trySpawn(playerPos) {

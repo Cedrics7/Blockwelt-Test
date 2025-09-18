@@ -74,7 +74,7 @@ export class Pig extends Entity {
                 this.velocity.y = this.jump_force;
             }
         }
-        this.mesh.rotation.y = Math.atan2(this.velocity.x, this.velocity.z);
+        this.mesh.rotation.y = Math.atan2(this.velocity.x, this.velocity.z) + Math.PI / 2;
         super.update(dt);
     }
 }

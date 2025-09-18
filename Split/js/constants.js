@@ -1,7 +1,10 @@
 // js/constants.js
 
 // Block-Typen
-export const BLOCK_TYPES = { AIR: 0, GRASS: 1, DIRT: 2, STONE: 3, LAVA: 4, SAND: 5, COAL_ORE: 6, IRON_ORE: 7, GOLD_ORE: 8, TITANIUM_ORE: 9, WOOD: 10, LEAVES: 11 };
+// js/constants.js
+
+// Block-Typen
+export const BLOCK_TYPES = { AIR: 0, GRASS: 1, DIRT: 2, STONE: 3, LAVA: 4, SAND: 5, COAL_ORE: 6, IRON_ORE: 7, GOLD_ORE: 8, TITANIUM_ORE: 9, WOOD: 10, LEAVES: 11, SAPLING: 12 }; // NEU: SAPLING
 
 // Erz-Generierung
 export const ORE_PARAMETERS = [

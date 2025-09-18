@@ -47,9 +47,10 @@ export class Chunk {
                             // Das ist entscheidend für Blöcke wie Gras mit mehreren Texturen.
                             let materialIndex = 0; // Standardmaterial für die meisten Blöcke
                             if (blockType === BLOCK_TYPES.GRASS) {
-                                if (face.name === 'top') materialIndex = 0;
-                                else if (face.name === 'bottom') materialIndex = 2; // Dirt
-                                else materialIndex = 1; // Side
+                                if (face.name === 'top') materialIndex = 2;
+                                else if (face.name === 'bottom') materialIndex = 3;
+                                else materialIndex = 0; // oder 1, 4, 5, da sie alle 'grassSide' sind
+
                             } else if (blockType === BLOCK_TYPES.WOOD) {
                                 materialIndex = 3; // Beispiel: Eigener Index für Holz
                             } else if (blockType === BLOCK_TYPES.LEAVES) {

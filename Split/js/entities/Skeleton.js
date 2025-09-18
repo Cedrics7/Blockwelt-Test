@@ -67,11 +67,16 @@ export class Skeleton extends Entity {
             this.velocity.x = direction.x * 2.5;
             this.velocity.z = direction.z * 2.5;
         }
+// NEU: Sprung-Logik hier einfügen
+        if (this.velocity.lengthSq() > 0.1 && this.on_ground()) {
+            const forwardDir = this.velocity.clone().normalize();
+            const checkPos = this.pos.clone().add(forwardDir.multiplyScalar(this.width));
+            if (this.world.isBlockAt(checkPos.x, this.pos.y + 0.5, checkPos.z)) {
+                this.velocity.y = this.jump_force;
+            }
+        }
+
         if (this.velocity.lengthSq() > 0.1) {
             this.mesh.rotation.y = Math.atan2(this.velocity.x, this.velocity.z);
         }
-
-        super.update(dt);
-    }
-
-}
+        super.update(dt);}}
