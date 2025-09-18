@@ -5,15 +5,42 @@ export class Skeleton extends Entity {
     constructor(scene, world, pos) {
         super(scene, world, pos);
         this.height = 1.8;
-        const body = new THREE.Mesh(new THREE.BoxGeometry(0.8, 1.2, 0.4), new THREE.MeshLambertMaterial({ color: 0xE0E0E0 }));
-        body.position.y = 0.6;
-        const head = new THREE.Mesh(new THREE.BoxGeometry(0.6, 0.6, 0.6), new THREE.MeshLambertMaterial({ color: 0xE0E0E0 }));
+        this.width = 0.6;
+
+        const boneMaterial = new THREE.MeshLambertMaterial({ color: 0xE0E0E0 });
+        const blackMaterial = new THREE.MeshLambertMaterial({ color: 0x222222 });
+
+        // Kopf
+        const head = new THREE.Group();
+        const mainHead = new THREE.Mesh(new THREE.BoxGeometry(0.6, 0.6, 0.6), boneMaterial);
+        const eye1 = new THREE.Mesh(new THREE.BoxGeometry(0.15, 0.15, 0.1), blackMaterial);
+        eye1.position.set(-0.31, 0.1, 0.1);
+        const eye2 = new THREE.Mesh(new THREE.BoxGeometry(0.15, 0.15, 0.1), blackMaterial);
+        eye2.position.set(-0.31, 0.1, -0.1);
+        head.add(mainHead, eye1, eye2);
         head.position.set(0, 1.5, 0);
-        this.mesh.add(body, head);
+
+        // Körper & Arme
+        const torso = new THREE.Mesh(new THREE.BoxGeometry(0.7, 1.0, 0.4), boneMaterial);
+        torso.position.y = 0.7;
+        const armLeft = new THREE.Mesh(new THREE.BoxGeometry(0.2, 1.0, 0.2), boneMaterial);
+        armLeft.position.set(-0.45, 0.7, 0);
+        const armRight = new THREE.Mesh(new THREE.BoxGeometry(0.2, 1.0, 0.2), boneMaterial);
+        armRight.position.set(0.45, 0.7, 0);
+
+        // Beine
+        const legLeft = new THREE.Mesh(new THREE.BoxGeometry(0.25, 1.0, 0.25), boneMaterial);
+        legLeft.position.set(-0.15, -0.3, 0);
+        const legRight = new THREE.Mesh(new THREE.BoxGeometry(0.25, 1.0, 0.25), boneMaterial);
+        legRight.position.set(0.15, -0.3, 0);
+
+        this.mesh.add(head, torso, armLeft, armRight, legLeft, legRight);
+
         this.state = 'wander';
         this.stateTimer = Math.random() * 5;
         this.seekDistance = 15;
     }
+
     update(dt, playerPos) {
         this.stateTimer -= dt;
         const distanceToPlayer = this.pos.distanceTo(playerPos);

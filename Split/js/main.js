@@ -136,18 +136,39 @@ function handlePlayerDeath() {
         // controls.lock(); // Optional: Spiel direkt fortsetzen
     }, 2000);
 }
-function quitToMainMenu() { gameRunning = false; isPaused = false; if (gameLoopId) cancelAnimationFrame(gameLoopId); if (controls) controls.unlock(); if (scene) { while (scene.children.length > 0) { scene.remove(scene.children[0]); } } hideUI(gameCanvas); hideUI(hotbarDiv); hideUI(crosshair); hideUI(pauseMenu); hideUI(inventoryScreen); hideUI(deathScreen); showUI(mainMenu); dbManager.hasSaveGame().then(hasSave => { document.getElementById('load-world-btn').disabled = !hasSave; }); }
+function quitToMainMenu() {
+    gameRunning = false;
+    isPaused = false;
+    if (gameLoopId) cancelAnimationFrame(gameLoopId);
+    if (controls) controls.unlock();
+    if (scene) {
+        while (scene.children.length > 0) {
+            scene.remove(scene.children[0]); }
+    } hideUI(gameCanvas);
+    hideUI(hotbarDiv);
+    hideUI(crosshair);
+    hideUI(pauseMenu);
+    hideUI(inventoryScreen);
+    hideUI(deathScreen);
+    hideUI(healthBarContainer); // << NEU: Health Bar hier ausblenden
+    showUI(mainMenu);
+    dbManager.hasSaveGame().then(hasSave => {
+        document.getElementById('load-world-btn').disabled = !hasSave; }); }
 
 
 // --- Event Listener Setup ---
 document.addEventListener('DOMContentLoaded', () => {
-    // ... (Dieser Block bleibt unverändert)
     showUI(mainMenu);
     dbManager.init().then(() => {
         dbManager.hasSaveGame().then(hasSave => {
             document.getElementById('load-world-btn').disabled = !hasSave;
         });
     });
+    
+    viewDistSlider.value = settingsManager.settings.viewDistance;
+    viewDistValue.textContent = settingsManager.settings.viewDistance;
+    texQualitySelect.value = settingsManager.settings.textureQuality;
+
     document.getElementById('new-world-btn').addEventListener('click', () => initGame(true));
     document.getElementById('load-world-btn').addEventListener('click', async () => { const data = await dbManager.loadGame(); if (data.worldData && data.playerData) initGame(false, data); });
     document.getElementById('settings-btn').addEventListener('click', () => { hideUI(mainMenu); showUI(settingsMenu); });

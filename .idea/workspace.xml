@@ -4,15 +4,14 @@
     <option name="autoReloadType" value="SELECTIVE" />
   </component>
   <component name="ChangeListManager">
-    <list default="true" id="9c6a33f9-1798-4a05-bf3e-b729840ddb49" name="Changes" comment="upload">
+    <list default="true" id="9c6a33f9-1798-4a05-bf3e-b729840ddb49" name="Changes" comment="Lebensmechanik, Einstellungen speichern und neuer Spawn">
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/Split/index.html" beforeDir="false" afterPath="$PROJECT_DIR$/Split/index.html" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/Split/js/entities/Pig.js" beforeDir="false" afterPath="$PROJECT_DIR$/Split/js/entities/Pig.js" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/Split/js/entities/Player.js" beforeDir="false" afterPath="$PROJECT_DIR$/Split/js/entities/Player.js" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/Split/js/entities/Skeleton.js" beforeDir="false" afterPath="$PROJECT_DIR$/Split/js/entities/Skeleton.js" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/Split/js/main.js" beforeDir="false" afterPath="$PROJECT_DIR$/Split/js/main.js" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/Split/js/managers/EntityManager.js" beforeDir="false" afterPath="$PROJECT_DIR$/Split/js/managers/EntityManager.js" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/Split/js/managers/SettingsManager.js" beforeDir="false" afterPath="$PROJECT_DIR$/Split/js/managers/SettingsManager.js" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/Split/js/ui.js" beforeDir="false" afterPath="$PROJECT_DIR$/Split/js/ui.js" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/Split/js/world/World.js" beforeDir="false" afterPath="$PROJECT_DIR$/Split/js/world/World.js" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/Split/js/utils/AssetGenerator.js" beforeDir="false" afterPath="$PROJECT_DIR$/Split/js/utils/AssetGenerator.js" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/Split/js/world/Chunk.js" beforeDir="false" afterPath="$PROJECT_DIR$/Split/js/world/Chunk.js" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/Split/style.css" beforeDir="false" afterPath="$PROJECT_DIR$/Split/style.css" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
@@ -144,7 +143,7 @@
       <workItem from="1758129942339" duration="788000" />
       <workItem from="1758130749494" duration="677000" />
       <workItem from="1758131635787" duration="400000" />
-      <workItem from="1758190837492" duration="16564000" />
+      <workItem from="1758190837492" duration="18982000" />
     </task>
     <task id="LOCAL-00001" summary="upload">
       <option name="closed" value="true" />
@@ -210,7 +209,15 @@
       <option name="project" value="LOCAL" />
       <updated>1758211627285</updated>
     </task>
-    <option name="localTasksCounter" value="9" />
+    <task id="LOCAL-00009" summary="Lebensmechanik, Einstellungen speichern und neuer Spawn">
+      <option name="closed" value="true" />
+      <created>1758218590453</created>
+      <option name="number" value="00009" />
+      <option name="presentableId" value="LOCAL-00009" />
+      <option name="project" value="LOCAL" />
+      <updated>1758218590453</updated>
+    </task>
+    <option name="localTasksCounter" value="10" />
     <servers />
   </component>
   <component name="TypeScriptGeneratedFilesManager">
@@ -218,6 +225,7 @@
   </component>
   <component name="VcsManagerConfiguration">
     <MESSAGE value="upload" />
-    <option name="LAST_COMMIT_MESSAGE" value="upload" />
+    <MESSAGE value="Lebensmechanik, Einstellungen speichern und neuer Spawn" />
+    <option name="LAST_COMMIT_MESSAGE" value="Lebensmechanik, Einstellungen speichern und neuer Spawn" />
   </component>
 </project>

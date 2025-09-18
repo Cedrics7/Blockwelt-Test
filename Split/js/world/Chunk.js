@@ -1,13 +1,15 @@
 import * as THREE from 'three';
 import { BLOCK_TYPES, CHUNK_SIZE, WORLD_MIN_Y } from '../constants.js';
 
+// KORREKTUR: Hilfsfunktion entfernt, da sie nicht mehr benötigt wird.
+
 export class Chunk {
     constructor(scene, chunkX, chunkY, chunkZ, blockGeometry) {
         this.x = chunkX;
         this.y = chunkY;
         this.z = chunkZ;
         this.scene = scene;
-        this.blockGeometry = blockGeometry; // Wichtig: blockGeometry hier speichern
+        this.blockGeometry = blockGeometry;
         this.meshes = {};
         this.grassMeshes = [];
         this.isActive = false;
@@ -25,25 +27,26 @@ export class Chunk {
             for (let y = startY; y < endY; y++) {
                 for (let z = startZ; z < endZ; z++) {
                     const blockType = world.getBlock(x, y, z);
+                    if (blockType === BLOCK_TYPES.AIR) continue;
 
-                    // Logik direkt von Spielseite.html: Jeder Block, der nicht Luft ist, wird verarbeitet
-                    if (blockType > 0) {
-                        if (blockType === BLOCK_TYPES.GRASS) {
-                            const mesh = new THREE.Mesh(this.blockGeometry, grassMaterials);
-                            mesh.position.set(x + 0.5, y + 0.5, z + 0.5);
-                            this.grassMeshes.push(mesh);
-                        } else if (materials[blockType]) {
-                            matrix.setPosition(x + 0.5, y + 0.5, z + 0.5);
-                            if (!this.meshes[blockType]) {
-                                this.meshes[blockType] = new THREE.InstancedMesh(this.blockGeometry, materials[blockType], CHUNK_SIZE * CHUNK_SIZE * CHUNK_SIZE);
-                            }
-                            this.meshes[blockType].setMatrixAt(counts[blockType]++, matrix);
+                    // KORREKTUR: Die fehlerhafte Sichtbarkeitsprüfung wurde entfernt.
+                    // Jeder Block (außer Luft) wird jetzt zur Geometrie hinzugefügt.
+                    // Die Performance-Optimierung (nur sichtbare Flächen rendern) wird später nachgeholt.
+
+                    if (blockType === BLOCK_TYPES.GRASS) {
+                        const mesh = new THREE.Mesh(this.blockGeometry, grassMaterials);
+                        mesh.position.set(x + 0.5, y + 0.5, z + 0.5);
+                        this.grassMeshes.push(mesh);
+                    } else if (materials[blockType]) {
+                        matrix.setPosition(x + 0.5, y + 0.5, z + 0.5);
+                        if (!this.meshes[blockType]) {
+                            this.meshes[blockType] = new THREE.InstancedMesh(this.blockGeometry, materials[blockType], CHUNK_SIZE * CHUNK_SIZE * CHUNK_SIZE);
                         }
+                        this.meshes[blockType].setMatrixAt(counts[blockType]++, matrix);
                     }
                 }
             }
         }
-
         for (const t in counts) {
             if (this.meshes[t]) {
                 this.meshes[t].count = counts[t];
@@ -52,6 +55,7 @@ export class Chunk {
         }
     }
 
+    // ... (restlicher Code der Klasse bleibt gleich)
     setActive(active) {
         if (this.isActive === active) return;
         this.isActive = active;
@@ -67,8 +71,18 @@ export class Chunk {
 
     dispose() {
         this.setActive(false);
-        // Geometrie wird nicht disposed, da sie geteilt wird. Materialien auch nicht.
-        // Nur die InstancedMesh-Objekte werden aus der Szene entfernt.
+        for (const type in this.meshes) {
+            this.meshes[type].geometry.dispose();
+            this.meshes[type].material.dispose();
+        }
+        this.grassMeshes.forEach(mesh => {
+            mesh.geometry.dispose();
+            if(Array.isArray(mesh.material)) {
+                mesh.material.forEach(m => m.dispose());
+            } else {
+                mesh.material.dispose();
+            }
+        });
         this.meshes = {};
         this.grassMeshes = [];
     }

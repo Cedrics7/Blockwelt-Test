@@ -1,7 +1,7 @@
+// Split/js/entities/Player.js
+
 import * as THREE from 'three';
 import { BLOCK_TYPES, WORLD_SIZE_X, WORLD_SIZE_Z, VOID_DEATH_Y, INVENTORY_SIZE, MAX_STACK_SIZE } from '../constants.js';
-
-// ... (imports)
 
 export class Player {
     constructor(world) {
@@ -20,7 +20,7 @@ export class Player {
         this.isDead = false;
         this.health = 20;
         this.maxHealth = 20;
-        this.fallVelocity = 0;
+        this.fallStartHeight = null;
     }
 
     takeDamage(amount) {
@@ -31,10 +31,11 @@ export class Player {
         }
     }
 
-
     setState(playerData) {
         this.pos.set(playerData.pos.x, playerData.pos.y, playerData.pos.z);
-        this.inventory = playerData.inventory;
+        if (playerData.inventory) {
+            this.inventory = playerData.inventory;
+        }
     }
 
     getState() {
@@ -42,6 +43,7 @@ export class Player {
     }
 
     addItem(type, count) {
+        // ... (unverändert)
         for (let i = 0; i < INVENTORY_SIZE; i++) {
             const item = this.inventory[i];
             if (item.type === type && item.count < MAX_STACK_SIZE) {
@@ -61,6 +63,7 @@ export class Player {
     }
 
     removeItem(slotIndex, count) {
+        // ... (unverändert)
         const item = this.inventory[slotIndex];
         if (item && item.type !== BLOCK_TYPES.AIR && item.count > 0) {
             item.count -= count;
@@ -99,6 +102,8 @@ export class Player {
     }
 
     update(dt, keys, camera) {
+        if (this.isDead) return;
+
         const onGround = this.on_ground();
 
         if (this.pos.y < VOID_DEATH_Y || this.world.getBlock(Math.floor(this.pos.x), Math.floor(this.pos.y - 0.1), Math.floor(this.pos.z)) === BLOCK_TYPES.LAVA) {
@@ -107,20 +112,79 @@ export class Player {
         }
 
         if (!onGround) {
-            this.velocity.y += this.gravity * dt;
-            this.fallVelocity = this.velocity.y; // Speichere die Fallgeschwindigkeit
-        } else {
-            if (this.fallVelocity < -8) { // Schwellenwert für Fallschaden
-                const damage = Math.floor(Math.abs(this.fallVelocity) - 7);
-                this.takeDamage(damage);
+            if (this.fallStartHeight === null) {
+                this.fallStartHeight = this.pos.y;
             }
-            this.fallVelocity = 0;
+            this.velocity.y += this.gravity * dt;
+        } else {
+            if (this.fallStartHeight !== null) {
+                const fallDistance = this.fallStartHeight - this.pos.y;
+
+                if (fallDistance >= 3) {
+                    // Definiert die prozentualen Schadensstufen.
+                    // Index 0: <3 Blöcke, 1: 3-5 Blöcke, 2: 6-8, 3: 9-11, 4: 12+
+                    const damageTiers = [0, 0.05, 0.15, 0.30, 0.60];
+
+                    // Berechnet die Fall-Stufe (1 für 3 Blöcke, 2 für 6 Blöcke etc.)
+                    const tier = Math.floor(fallDistance / 3);
+
+                    // Wählt den korrekten Prozentsatz. Math.min verhindert einen Fehler bei sehr hohen Stürzen.
+                    const damagePercentage = damageTiers[Math.min(tier, damageTiers.length - 1)];
+
+                    const damage = Math.floor(this.maxHealth * damagePercentage);
+                    if (damage > 0) {
+                        this.takeDamage(damage);
+                    }
+                }
+            }
+            this.fallStartHeight = null;
             if (this.velocity.y < 0) this.velocity.y = 0;
         }
 
-        if (keys['Space'] && onGround) { this.velocity.y = this.jump_force; }
+        if (keys['Space'] && onGround) {
+            this.velocity.y = this.jump_force;
+        }
 
-        // ... (Bewegungslogik)
+        const currentSpeed = keys['ControlLeft'] ? this.sprintSpeed : this.speed;
+        const forward = new THREE.Vector3();
+        camera.getWorldDirection(forward);
+        forward.y = 0;
+        forward.normalize();
+        const right = new THREE.Vector3().crossVectors(new THREE.Vector3(0, 1, 0), forward);
+
+        let moveX = 0, moveZ = 0;
+        if (keys['KeyW']) { moveZ = 1; }
+        if (keys['KeyS']) { moveZ = -1; }
+        if (keys['KeyA']) { moveX = 1; }
+        if (keys['KeyD']) { moveX = -1; }
+
+        const wishDirection = new THREE.Vector3().addScaledVector(forward, moveZ).addScaledVector(right, moveX);
+        if (wishDirection.lengthSq() > 0) {
+            wishDirection.normalize();
+            this.velocity.x = wishDirection.x * currentSpeed;
+            this.velocity.z = wishDirection.z * currentSpeed;
+        } else {
+            this.velocity.x = 0;
+            this.velocity.z = 0;
+        }
+
+        const deltaPos = this.velocity.clone().multiplyScalar(dt);
+        this.pos.y += deltaPos.y;
+        if (this.is_colliding(this.pos)) {
+            this.pos.y -= deltaPos.y;
+            this.velocity.y = 0;
+        }
+        this.pos.x += deltaPos.x;
+        if (this.is_colliding(this.pos)) {
+            this.pos.x -= deltaPos.x;
+        }
+        this.pos.z += deltaPos.z;
+        if (this.is_colliding(this.pos)) {
+            this.pos.z -= deltaPos.z;
+        }
+
+        this.pos.x = Math.max(0.5, Math.min(this.pos.x, WORLD_SIZE_X - 0.5));
+        this.pos.z = Math.max(0.5, Math.min(this.pos.z, WORLD_SIZE_Z - 0.5));
 
         camera.position.copy(this.get_camera_position());
     }
@@ -129,5 +193,6 @@ export class Player {
         this.health = this.maxHealth;
         this.isDead = false;
         this.velocity.set(0, 0, 0);
+        this.fallStartHeight = null; // Wichtig: Beim Respawn zurücksetzen
     }
 }

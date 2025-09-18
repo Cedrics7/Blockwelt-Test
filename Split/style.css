@@ -31,7 +31,7 @@ canvas { display: none; } /* Wird per JS sichtbar */
 .menu button:disabled { background-color: #444; color: #888; cursor: not-allowed; }
 .settings-option { display: flex; justify-content: space-between; align-items: center; margin: 15px 0; }
 .settings-option label { margin-right: 20px; }
-#crosshair, #hotbar, #inventory-screen, #death-screen { display: none; } /* Alles standardmäßig ausblenden */
+#crosshair, #hotbar, #inventory-screen, #death-screen, #health-bar-container { display: none; } /* Alles standardmäßig ausblenden */
 #crosshair {
     position: absolute; top: 50%; left: 50%;
     width: 4px; height: 4px; background-color: white;

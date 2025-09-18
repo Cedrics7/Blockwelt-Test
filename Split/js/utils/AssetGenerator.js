@@ -18,11 +18,19 @@ export function generateAssets(settings, CONSTANTS, renderer) {
         drawCallback(context, s);
         const texture = new THREE.CanvasTexture(canvas);
 
-        // Exakte Filterung für scharfen Pixel-Look
+        // --- KORREKTUR FÜR HOHE TEXTURQUALITÄT ---
+        // Sorgt für den pixeligen Look bei Nahansicht
         texture.magFilter = THREE.NearestFilter;
-        texture.minFilter = THREE.NearestFilter;
-        texture.generateMipmaps = false;
+        // WICHTIG: Sorgt für sauberes, scharfes Verkleinern bei Fernsicht
+        texture.minFilter = THREE.NearestMipmapLinearFilter;
+        // Sagt Three.js, dass Mipmaps erstellt werden sollen
+        texture.generateMipmaps = true;
+        // Erzwingt die Aktualisierung und Generierung der Mipmaps
+        texture.needsUpdate = true;
 
+        if (renderer) {
+            texture.anisotropy = renderer.capabilities.getMaxAnisotropy();
+        }
         return { texture, dataURL: canvas.toDataURL() };
     }
 
