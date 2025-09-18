@@ -83,17 +83,8 @@ export function generateAssets(settings, CONSTANTS, renderer) {
     textureDataURLs[BLOCK_TYPES.LEAVES] = leavesURL;
 
     // Materialien erstellen
-    for (const key in generated) {
-        if (key != BLOCK_TYPES.GRASS) {
-            materials[key] = new THREE.MeshLambertMaterial({ map: generated[key] });
-        }
-    }
+    for(const key in generated) { if(key != BLOCK_TYPES.GRASS) { materials[key] = new THREE.MeshLambertMaterial({ map: generated[key] }); } }
+    materials[BLOCK_TYPES.LAVA].emissive=new THREE.Color('#FF6600');materials[BLOCK_TYPES.LAVA].emissiveIntensity=0.5;
 
-    // Blätter-Material transparent machen
-    materials[BLOCK_TYPES.LEAVES].transparent = true;
-    materials[BLOCK_TYPES.LEAVES].side = THREE.DoubleSide; // Damit man von innen und außen durchschauen kann
-
-    materials[BLOCK_TYPES.LAVA].emissive = new THREE.Color('#FF6600');
-    // ... (Rest der Funktion)
     return { textureDataURLs, materials, grassMaterials, blockGeometry };
 }
