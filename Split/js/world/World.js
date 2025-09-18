@@ -1,4 +1,6 @@
-import { createNoise3D } from 'simplex-noise';
+// Split/js/world/World.js
+
+import { createNoise2D } from 'simplex-noise';
 import { BLOCK_TYPES, ORE_PARAMETERS, WORLD_SIZE_X, WORLD_SIZE_Y, WORLD_SIZE_Z, WORLD_MIN_Y } from '../constants.js';
 
 export class World {
@@ -11,48 +13,42 @@ export class World {
     }
 
     generate() {
-        const noise3D = createNoise3D(Math.random);
-        const surfaceLevel = 10;
-        const stoneThreshold = 0;
-
-        // Schritt 1: Erschaffe die Grundform der Welt mit 3D-Noise für Höhlen
-        for (let x = 0; x < WORLD_SIZE_X; x++) {
-            for (let z = 0; z < WORLD_SIZE_Z; z++) {
-                for (let y = WORLD_MIN_Y; y < WORLD_SIZE_Y + WORLD_MIN_Y; y++) {
-                    const noiseScale = 80;
-                    const noiseValue = noise3D(x / noiseScale, y / noiseScale, z / noiseScale);
-                    const density = noiseValue + (surfaceLevel - y) * 0.05;
-
-                    if (density > stoneThreshold) {
-                        this.setBlock(x, y, z, BLOCK_TYPES.STONE);
-                    }
-                }
-            }
-        }
-
-        // Schritt 2: Füge eine Oberflächenschicht hinzu (Gras, Erde, Sand)
+        const noise2D = createNoise2D(Math.random);
         const seaLevel = 0;
+
         for (let x = 0; x < WORLD_SIZE_X; x++) {
             for (let z = 0; z < WORLD_SIZE_Z; z++) {
-                for (let y = (WORLD_SIZE_Y + WORLD_MIN_Y) - 1; y > WORLD_MIN_Y; y--) {
-                    const currentBlock = this.getBlock(x, y, z);
-                    const blockAbove = this.getBlock(x, y + 1, z);
+                // Exakt die gleiche Noise-Berechnung wie in Spielseite.html
+                const n1 = noise2D(x / 250, z / 250);
+                const n2 = noise2D(x / 90, z / 90) * 0.4;
+                const n3 = noise2D(x / 40, z / 40) * 0.2;
+                const n4 = noise2D(x / 15, z / 15) * 0.1;
+                const elevation = (n1 + n2 + n3 + n4) / (1 + 0.4 + 0.2 + 0.1);
+                const height = seaLevel + 30 + Math.pow(elevation, 3) * 50;
 
-                    if (currentBlock === BLOCK_TYPES.STONE && blockAbove === BLOCK_TYPES.AIR) {
-                        if (y < seaLevel + 2) {
+                for (let y = WORLD_MIN_Y; y < height; y++) {
+                    if (y < -190) {
+                        this.setBlock(x, y, z, BLOCK_TYPES.LAVA);
+                    } else if (y < height - 4) {
+                        this.setBlock(x, y, z, BLOCK_TYPES.STONE);
+                    } else if (y < height) {
+                        if (height < seaLevel + 2) {
                             this.setBlock(x, y, z, BLOCK_TYPES.SAND);
-                            this.setBlock(x, y - 1, z, BLOCK_TYPES.SAND);
                         } else {
-                            this.setBlock(x, y, z, BLOCK_TYPES.GRASS);
-                            this.setBlock(x, y - 1, z, BLOCK_TYPES.DIRT);
-                            this.setBlock(x, y - 2, z, BLOCK_TYPES.DIRT);
+                            this.setBlock(x, y, z, BLOCK_TYPES.DIRT);
                         }
-                        break;
+                    }
+                }
+
+                if (height >= seaLevel) {
+                    if (height < seaLevel + 2) {
+                        this.setBlock(x, Math.floor(height), z, BLOCK_TYPES.SAND);
+                    } else {
+                        this.setBlock(x, Math.floor(height), z, BLOCK_TYPES.GRASS);
                     }
                 }
             }
         }
-
         this.generateOres();
     }
 

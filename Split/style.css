@@ -93,4 +93,12 @@ canvas { display: none; } /* Wird per JS sichtbar */
     gap: 5px; background-color: rgba(10, 10, 10, 0.8);
     padding: 10px; border-radius: 5px; border: 2px solid #333;
 }
+/* NEU: Styling für das gezogene Item */
+#dragged-item {
+    position: absolute; /* Damit es frei beweglich ist */
+    display: none;      /* Standardmäßig unsichtbar */
+    pointer-events: none; /* Klicks gehen "durch" das Element hindurch */
+    z-index: 100;       /* Immer über allen anderen UI-Elementen */
+    transform: translate(-50%, -50%); /* Zentriert das Item auf dem Mauszeiger */
+}
 #loading-overlay { z-index: 25; }

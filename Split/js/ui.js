@@ -19,6 +19,8 @@ export function setupGameUI(inventorySize) {
     for (let i = 0; i < inventorySize; i++) {
         const slot = document.createElement('div');
         slot.classList.add('slot');
+        slot.setAttribute('data-index', i); // WICHTIG: Fügt den Index hinzu
+
         const count = document.createElement('div');
         count.classList.add('slot-count');
         slot.appendChild(count);

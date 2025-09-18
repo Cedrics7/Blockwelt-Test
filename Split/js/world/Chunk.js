@@ -7,7 +7,7 @@ export class Chunk {
         this.y = chunkY;
         this.z = chunkZ;
         this.scene = scene;
-        this.blockGeometry = blockGeometry;
+        this.blockGeometry = blockGeometry; // Wichtig: blockGeometry hier speichern
         this.meshes = {};
         this.grassMeshes = [];
         this.isActive = false;
@@ -26,25 +26,24 @@ export class Chunk {
                 for (let z = startZ; z < endZ; z++) {
                     const blockType = world.getBlock(x, y, z);
 
-                    // ### KORREKTUR: Die fehlerhafte "isVisible"-Prüfung wurde komplett entfernt. ###
-                    // Jetzt wird jeder Block gezeichnet, der nicht Luft ist, genau wie im Original.
-                    // Dies behebt das Problem der unsichtbaren Blöcke an Chunk-Grenzen.
-                    if (blockType === BLOCK_TYPES.AIR) continue;
-
-                    if (blockType === BLOCK_TYPES.GRASS) {
-                        const mesh = new THREE.Mesh(this.blockGeometry, grassMaterials);
-                        mesh.position.set(x + 0.5, y + 0.5, z + 0.5);
-                        this.grassMeshes.push(mesh);
-                    } else if (materials[blockType]) {
-                        matrix.setPosition(x + 0.5, y + 0.5, z + 0.5);
-                        if (!this.meshes[blockType]) {
-                            this.meshes[blockType] = new THREE.InstancedMesh(this.blockGeometry, materials[blockType], CHUNK_SIZE * CHUNK_SIZE * CHUNK_SIZE);
+                    // Logik direkt von Spielseite.html: Jeder Block, der nicht Luft ist, wird verarbeitet
+                    if (blockType > 0) {
+                        if (blockType === BLOCK_TYPES.GRASS) {
+                            const mesh = new THREE.Mesh(this.blockGeometry, grassMaterials);
+                            mesh.position.set(x + 0.5, y + 0.5, z + 0.5);
+                            this.grassMeshes.push(mesh);
+                        } else if (materials[blockType]) {
+                            matrix.setPosition(x + 0.5, y + 0.5, z + 0.5);
+                            if (!this.meshes[blockType]) {
+                                this.meshes[blockType] = new THREE.InstancedMesh(this.blockGeometry, materials[blockType], CHUNK_SIZE * CHUNK_SIZE * CHUNK_SIZE);
+                            }
+                            this.meshes[blockType].setMatrixAt(counts[blockType]++, matrix);
                         }
-                        this.meshes[blockType].setMatrixAt(counts[blockType]++, matrix);
                     }
                 }
             }
         }
+
         for (const t in counts) {
             if (this.meshes[t]) {
                 this.meshes[t].count = counts[t];
@@ -68,18 +67,8 @@ export class Chunk {
 
     dispose() {
         this.setActive(false);
-        for (const type in this.meshes) {
-            this.meshes[type].geometry.dispose();
-            this.meshes[type].material.dispose();
-        }
-        this.grassMeshes.forEach(mesh => {
-            mesh.geometry.dispose();
-            if(Array.isArray(mesh.material)) {
-                mesh.material.forEach(m => m.dispose());
-            } else {
-                mesh.material.dispose();
-            }
-        });
+        // Geometrie wird nicht disposed, da sie geteilt wird. Materialien auch nicht.
+        // Nur die InstancedMesh-Objekte werden aus der Szene entfernt.
         this.meshes = {};
         this.grassMeshes = [];
     }
