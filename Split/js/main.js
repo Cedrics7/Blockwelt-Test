@@ -89,7 +89,7 @@ async function initGame(isNew, loadedData) {
 
     loadingText.textContent = 'Assets werden erstellt...';
     await new Promise(resolve => setTimeout(() => {
-        assets = generateAssets(settingsManager.settings, CONSTANTS);
+        assets = generateAssets(settingsManager.settings, CONSTANTS, renderer);
         resolve();
     }, 50));
 
@@ -101,7 +101,7 @@ async function initGame(isNew, loadedData) {
     showUI(crosshair);
     setupGameUI(CONSTANTS.INVENTORY_SIZE);
     updateFullUI(player, assets.textureDataURLs, CONSTANTS.BLOCK_TYPES);
-    //controls.lock();
+    controls.lock();
     gameRunning = true;
     isPaused = false;
     isPlayerDead = false;
@@ -132,13 +132,15 @@ function animate() {
 function handlePlayerDeath() {
     if (isPlayerDead) return;
     isPlayerDead = true;
+    controls.unlock();
     deathScreen.textContent = "Du bist gestorben!";
     showUI(deathScreen);
     setTimeout(() => {
         hideUI(deathScreen);
         player.respawn();
         isPlayerDead = false;
-    }, 1500);
+        controls.lock();
+    }, 2000);
 }
 
 function quitToMainMenu() {
@@ -182,45 +184,31 @@ document.addEventListener('DOMContentLoaded', () => {
         showUI(settingsMenu);
     });
 
-    // In js/main.js
-
     document.getElementById('back-btn').addEventListener('click', async () => {
-        // 1. Hole den neuen Wert aus dem Dropdown-Menü.
         const newQuality = texQualitySelect.value;
-
-        // 2. Prüfe, ob sich der Wert wirklich geändert hat.
         const qualityChanged = settingsManager.settings.textureQuality !== newQuality;
 
-        // 3. Aktualisiere die Einstellungen im SettingsManager.
         settingsManager.settings.viewDistance = parseInt(viewDistSlider.value);
         settingsManager.settings.textureQuality = newQuality;
-        settingsManager.save(); // Speichere die neuen Einstellungen auf der Festplatte.
+        settingsManager.save();
 
-        // 4. PRÜFUNG: Nur wenn das Spiel läuft UND die Qualität geändert wurde, die Assets neu laden.
         if (gameRunning && qualityChanged) {
-            // Zeige den Ladebildschirm an, da dies einen Moment dauern kann.
             loadingText.textContent = 'Texturen werden aktualisiert...';
             showUI(loadingOverlay);
-            await new Promise(r => setTimeout(r, 50)); // Kurze Pause, damit die UI aktualisiert wird.
+            await new Promise(r => setTimeout(r, 50));
 
-            // Generiere alle Texturen und Materialien komplett neu.
-            assets = generateAssets(settingsManager.settings, CONSTANTS);
+            assets = generateAssets(settingsManager.settings, CONSTANTS, renderer);
 
-            // Lösche ALLE alten Chunks aus dem Speicher und der Szene.
             chunkManager.chunks.forEach(chunk => chunk.dispose());
             chunkManager.chunks.clear();
 
-            // Erzwinge einen Neuaufbau aller sichtbaren Chunks mit den neuen Materialien.
             chunkManager.update(player.pos, assets.materials, assets.grassMaterials, settingsManager.settings);
 
-            // Aktualisiere auch die UI (Hotbar/Inventar) mit den neuen Texturen.
             updateFullUI(player, assets.textureDataURLs, CONSTANTS.BLOCK_TYPES);
 
-            // Verstecke den Ladebildschirm wieder.
             hideUI(loadingOverlay);
         }
 
-        // 5. Gehe zum vorherigen Menü zurück.
         hideUI(settingsMenu);
         if (gameRunning) {
             showUI(pauseMenu);
@@ -248,9 +236,6 @@ document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('quit-to-main-btn').addEventListener('click', quitToMainMenu);
 });
 
-
-// --- KORREKTUR: Die Event Listener wurden aus der Verschachtelung befreit ---
-// Diese Listener werden jetzt nur EINMAL beim Laden der Seite hinzugefügt.
 document.addEventListener('keydown', (e) => {
     keys[e.code] = true;
     if (!gameRunning) return;
@@ -292,18 +277,13 @@ window.addEventListener('resize', () => {
     }
 });
 
-window.addEventListener('contextmenu', (e) => {
-    e.preventDefault();
-});
+window.addEventListener('contextmenu', (e) => e.preventDefault());
 
 gameCanvas.addEventListener('click', () => {
-    if (!controls.isLocked) {
+    if (!controls.isLocked && !isPlayerDead) {
         controls.lock();
     }
 });
-
-
-// Split/js/main.js
 
 window.addEventListener('mousedown', (e) => {
     if (!gameRunning || !controls || !controls.isLocked) return;
@@ -320,7 +300,6 @@ window.addEventListener('mousedown', (e) => {
         const normal = intersection.face.normal.clone();
 
         if (e.button === 0) { // === BLOCK ABBAUEN ===
-            // Gehe einen halben Schritt VOM Block weg, um die Koordinate des Blocks zu bekommen
             pos.sub(normal.multiplyScalar(0.5));
             const blockPos = { x: Math.floor(pos.x), y: Math.floor(pos.y), z: Math.floor(pos.z) };
             const blockType = world.getBlock(blockPos.x, blockPos.y, blockPos.z);
@@ -328,7 +307,6 @@ window.addEventListener('mousedown', (e) => {
             if (blockType !== CONSTANTS.BLOCK_TYPES.AIR && blockType !== CONSTANTS.BLOCK_TYPES.LAVA) {
                 player.addItem(blockType, 1);
                 world.setBlock(blockPos.x, blockPos.y, blockPos.z, CONSTANTS.BLOCK_TYPES.AIR);
-                // Wichtig: Übergebe die exakten Koordinaten des entfernten Blocks
                 chunkManager.rebuildChunkAt(blockPos.x, blockPos.y, blockPos.z, assets.materials, assets.grassMaterials);
                 updateFullUI(player, assets.textureDataURLs, CONSTANTS.BLOCK_TYPES);
             }
@@ -336,7 +314,6 @@ window.addEventListener('mousedown', (e) => {
             const item = player.inventory[player.selectedHotbarSlot];
             if (!item || item.type === CONSTANTS.BLOCK_TYPES.AIR || item.count <= 0) return;
 
-            // Gehe einen halben Schritt ZUM Block hin, um die Koordinate der neuen Position zu bekommen
             pos.add(normal.multiplyScalar(0.5));
             const newBlockPos = { x: Math.floor(pos.x), y: Math.floor(pos.y), z: Math.floor(pos.z) };
 
@@ -347,9 +324,9 @@ window.addEventListener('mousedown', (e) => {
             );
 
             if (!pBox.intersectsBox(nBBox)) {
+                const itemToPlace = player.inventory[player.selectedHotbarSlot];
                 if (player.removeItem(player.selectedHotbarSlot, 1)) {
-                    world.setBlock(newBlockPos.x, newBlockPos.y, newBlockPos.z, item.type);
-                    // Wichtig: Übergebe die exakten Koordinaten des neuen Blocks
+                    world.setBlock(newBlockPos.x, newBlockPos.y, newBlockPos.z, itemToPlace.type);
                     chunkManager.rebuildChunkAt(newBlockPos.x, newBlockPos.y, newBlockPos.z, assets.materials, assets.grassMaterials);
                     updateFullUI(player, assets.textureDataURLs, CONSTANTS.BLOCK_TYPES);
                 }

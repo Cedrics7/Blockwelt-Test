@@ -1,10 +1,6 @@
 import * as THREE from 'three';
 import { BLOCK_TYPES, CHUNK_SIZE, WORLD_MIN_Y } from '../constants.js';
 
-function isBlockTransparent(blockType) {
-    return blockType === BLOCK_TYPES.AIR || blockType === BLOCK_TYPES.LAVA;
-}
-
 export class Chunk {
     constructor(scene, chunkX, chunkY, chunkZ, blockGeometry) {
         this.x = chunkX;
@@ -29,17 +25,11 @@ export class Chunk {
             for (let y = startY; y < endY; y++) {
                 for (let z = startZ; z < endZ; z++) {
                     const blockType = world.getBlock(x, y, z);
+
+                    // ### KORREKTUR: Die fehlerhafte "isVisible"-Prüfung wurde komplett entfernt. ###
+                    // Jetzt wird jeder Block gezeichnet, der nicht Luft ist, genau wie im Original.
+                    // Dies behebt das Problem der unsichtbaren Blöcke an Chunk-Grenzen.
                     if (blockType === BLOCK_TYPES.AIR) continue;
-
-                    const isVisible =
-                        isBlockTransparent(world.getBlock(x + 1, y, z)) ||
-                        isBlockTransparent(world.getBlock(x - 1, y, z)) ||
-                        isBlockTransparent(world.getBlock(x, y + 1, z)) ||
-                        isBlockTransparent(world.getBlock(x, y - 1, z)) ||
-                        isBlockTransparent(world.getBlock(x, y, z + 1)) ||
-                        isBlockTransparent(world.getBlock(x, y, z - 1));
-
-                    if (!isVisible) continue;
 
                     if (blockType === BLOCK_TYPES.GRASS) {
                         const mesh = new THREE.Mesh(this.blockGeometry, grassMaterials);

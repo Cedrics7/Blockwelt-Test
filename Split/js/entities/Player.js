@@ -15,7 +15,7 @@ export class Player {
         this.width = 0.6;
         this.selectedHotbarSlot = 0;
         this.inventory = Array(INVENTORY_SIZE).fill(null).map(() => ({ type: BLOCK_TYPES.AIR, count: 0 }));
-        this.isDead = false;
+        this.isDead = false; // NEU: Status für den Tod
     }
 
     setState(playerData) {
@@ -85,7 +85,7 @@ export class Player {
     }
 
     update(dt, keys, camera) {
-        // Todesbedingungen prüfen
+        // KORREKTUR: Todesbedingungen prüfen
         const feetY = Math.floor(this.pos.y - 0.1);
         if (this.pos.y < VOID_DEATH_Y || this.world.getBlock(Math.floor(this.pos.x), feetY, Math.floor(this.pos.z)) === BLOCK_TYPES.LAVA) {
             this.isDead = true;
@@ -128,6 +128,7 @@ export class Player {
         camera.position.copy(this.get_camera_position());
     }
 
+    // NEU: Respawn-Methode
     respawn() {
         this.pos.set(WORLD_SIZE_X / 2, 100, WORLD_SIZE_Z / 2);
         this.velocity.set(0, 0, 0);

@@ -37,8 +37,6 @@ export class ChunkManager {
         }
     }
 
-    // Split/js/managers/ChunkManager.js
-
     rebuildChunkAt(worldX, worldY, worldZ, materials, grassMaterials) {
         // Helferfunktion, um einen einzelnen Chunk anhand seiner Chunk-Koordinaten neu zu bauen.
         const rebuild = (cx, cy, cz) => {
@@ -71,7 +69,7 @@ export class ChunkManager {
         if (zInChunk === 0) rebuild(mainChunkX, mainChunkY, mainChunkZ - 1);
         if (zInChunk === CHUNK_SIZE - 1) rebuild(mainChunkX, mainChunkY, mainChunkZ + 1);
 
-        // Vertikale Nachbarn (oben/unten) - wichtig für das Graben nach unten/oben
+        // Vertikale Nachbarn (oben/unten)
         if (yInChunk === 0) rebuild(mainChunkX, mainChunkY - 1, mainChunkZ);
         if (yInChunk === CHUNK_SIZE - 1) rebuild(mainChunkX, mainChunkY + 1, mainChunkZ);
     }

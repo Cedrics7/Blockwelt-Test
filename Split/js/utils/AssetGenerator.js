@@ -1,5 +1,3 @@
-// Split/js/utils/AssetGenerator.js
-
 import * as THREE from 'three';
 import { createNoise2D } from 'simplex-noise';
 
@@ -18,15 +16,18 @@ export function generateAssets(settings, CONSTANTS, renderer) {
         drawCallback(context, s);
         const texture = new THREE.CanvasTexture(canvas);
 
-        // --- KORREKTUR FÜR HOHE TEXTURQUALITÄT ---
-        texture.magFilter = THREE.NearestFilter; // Sorgt für den pixeligen Look beim Vergrößern (Nahansicht)
-        texture.minFilter = THREE.NearestMipmapLinearFilter; // WICHTIG: Sorgt für sauberes, scharfes Verkleinern (Fernsicht)
-        texture.generateMipmaps = true; // Sagt Three.js, dass Mipmaps erstellt werden sollen
-        texture.needsUpdate = true; // Erzwingt die Aktualisierung der Textur und die Generierung der Mipmaps
+        texture.magFilter = THREE.NearestFilter;
+        texture.minFilter = THREE.NearestMipmapLinearFilter;
+        texture.generateMipmaps = true;
 
+        // ### KORREKTUR: Anisotropische Filterung hinzufügen ###
+        // Dies verbessert die Texturschärfe bei schrägen Blickwinkeln dramatisch.
+        // `renderer` muss dafür an die Funktion übergeben werden.
         if (renderer) {
             texture.anisotropy = renderer.capabilities.getMaxAnisotropy();
         }
+
+        texture.needsUpdate = true; // Wichtig, damit die Einstellungen übernommen werden.
         return { texture, dataURL: canvas.toDataURL() };
     }
 
@@ -40,10 +41,6 @@ export function generateAssets(settings, CONSTANTS, renderer) {
     const drawCloudNoise = (ctx, s, baseR, baseG, baseB, noiseScale = 4.0, intensity = 40) => {
         for (let x = 0; x < s; x++) {
             for (let y = 0; y < s; y++) {
-                // --- KORREKTUR DER RAUSCH-SKALIERUNG ---
-                // Die Skalierung ist jetzt von der Auflösung 's' entkoppelt.
-                // Das Muster sieht bei 16x und 256x nun visuell gleich "grob" aus,
-                // bei 256x aber natürlich viel schärfer.
                 const noiseVal = noise2D((x / s) * noiseScale, (y / s) * noiseScale);
                 const colorAdjust = Math.floor(noiseVal * intensity);
                 ctx.fillStyle = lightenColor(baseR, baseG, baseB, colorAdjust);
