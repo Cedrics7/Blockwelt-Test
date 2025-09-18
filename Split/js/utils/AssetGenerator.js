@@ -54,10 +54,46 @@ export function generateAssets(settings, CONSTANTS, renderer) {
     const{texture:it,dataURL:iu}=createCanvasTexture(size,(c,s)=>{drawStone(c,s);drawOre(c,s,'#AF4F2F',12,0.3)});generated[BLOCK_TYPES.IRON_ORE]=it;textureDataURLs[BLOCK_TYPES.IRON_ORE]=iu;
     const{texture:got,dataURL:gou}=createCanvasTexture(size,(c,s)=>{drawStone(c,s);drawOre(c,s,'#FFD700',8,0.4)});generated[BLOCK_TYPES.GOLD_ORE]=got;textureDataURLs[BLOCK_TYPES.GOLD_ORE]=gou;
     const{texture:tt,dataURL:tu}=createCanvasTexture(size,(c,s)=>{drawStone(c,s);drawOre(c,s,'#B0C4DE',6,0.5)});generated[BLOCK_TYPES.TITANIUM_ORE]=tt;textureDataURLs[BLOCK_TYPES.TITANIUM_ORE]=tu;
+// Textur für Holz
+    const { texture: woodTex, dataURL: woodURL } = createCanvasTexture(size, (c, s) => {
+        c.fillStyle = '#6e5a36';
+        c.fillRect(0, 0, s, s);
+        c.fillStyle = '#8c7346';
+        c.fillRect(s * 0.1, 0, s * 0.8, s);
+        for (let i = 0; i < s; i += 4) {
+            c.fillStyle = 'rgba(0,0,0,0.1)';
+            c.fillRect(0, i, s, 2);
+        }
+    });
+    generated[BLOCK_TYPES.WOOD] = woodTex;
+    textureDataURLs[BLOCK_TYPES.WOOD] = woodURL;
+
+    // Textur für Blätter
+    const { texture: leavesTex, dataURL: leavesURL } = createCanvasTexture(size, (c, s) => {
+        c.fillStyle = '#2a752e';
+        c.fillRect(0, 0, s, s);
+        for (let i = 0; i < s * s * 0.5; i++) {
+            const x = Math.random() * s;
+            const y = Math.random() * s;
+            c.fillStyle = Math.random() > 0.5 ? '#36913b' : '#1e5421';
+            c.fillRect(x, y, 2, 2);
+        }
+    });
+    generated[BLOCK_TYPES.LEAVES] = leavesTex;
+    textureDataURLs[BLOCK_TYPES.LEAVES] = leavesURL;
 
     // Materialien erstellen
-    for(const key in generated) { if(key != BLOCK_TYPES.GRASS) { materials[key] = new THREE.MeshLambertMaterial({ map: generated[key] }); } }
-    materials[BLOCK_TYPES.LAVA].emissive=new THREE.Color('#FF6600');materials[BLOCK_TYPES.LAVA].emissiveIntensity=0.5;
+    for (const key in generated) {
+        if (key != BLOCK_TYPES.GRASS) {
+            materials[key] = new THREE.MeshLambertMaterial({ map: generated[key] });
+        }
+    }
 
+    // Blätter-Material transparent machen
+    materials[BLOCK_TYPES.LEAVES].transparent = true;
+    materials[BLOCK_TYPES.LEAVES].side = THREE.DoubleSide; // Damit man von innen und außen durchschauen kann
+
+    materials[BLOCK_TYPES.LAVA].emissive = new THREE.Color('#FF6600');
+    // ... (Rest der Funktion)
     return { textureDataURLs, materials, grassMaterials, blockGeometry };
 }

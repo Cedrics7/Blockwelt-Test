@@ -18,7 +18,7 @@ let gameRunning = false, isPaused = false, isInventoryOpen = false, isPlayerDead
 let gameLoopId;
 const clock = new THREE.Clock();
 const keys = {};
-const raycaster = new THREE.Raycaster();
+
 
 // NEU: Zustand für Drag & Drop
 let draggedItemStack = null;
@@ -43,6 +43,11 @@ const viewDistSlider = document.getElementById('view-distance-slider');
 const viewDistValue = document.getElementById('view-distance-value');
 const texQualitySelect = document.getElementById('texture-quality-select');
 const healthBarContainer = document.getElementById('health-bar-container');
+const raycaster = new THREE.Raycaster();
+
+// NEU: Warteschlange für den Blattverfall
+const decayQueue = new Set();
+let isProcessingDecay = false;
 // --- Haupt-Spiellogik ---
 
 async function initGame(isNew, loadedData) {
@@ -164,7 +169,7 @@ document.addEventListener('DOMContentLoaded', () => {
             document.getElementById('load-world-btn').disabled = !hasSave;
         });
     });
-    
+
     viewDistSlider.value = settingsManager.settings.viewDistance;
     viewDistValue.textContent = settingsManager.settings.viewDistance;
     texQualitySelect.value = settingsManager.settings.textureQuality;
@@ -219,21 +224,6 @@ document.addEventListener('keyup', (e) => { keys[e.code] = false; });
 window.addEventListener('resize', () => { if (gameRunning && camera && renderer) { camera.aspect = window.innerWidth / window.innerHeight; camera.updateProjectionMatrix(); renderer.setSize(window.innerWidth, window.innerHeight); } });
 window.addEventListener('contextmenu', (e) => e.preventDefault());
 gameCanvas.addEventListener('click', () => { if (!isPlayerDead && !isPaused) { controls.lock(); } });
-window.addEventListener('mousedown', (e) => {
-    if (!gameRunning || !controls.isLocked) return;
-    raycaster.setFromCamera({ x: 0, y: 0 }, camera);
-    const iMeshes = chunkManager.getIntersectableMeshes();
-    const intersects = raycaster.intersectObjects(iMeshes, false);
-    if (intersects.length > 0) {
-        const intersection = intersects[0];
-        if (intersection.distance > CONSTANTS.PLAYER_REACH) return;
-        const pos = new THREE.Vector3().copy(intersection.point);
-        const normal = intersection.face.normal.clone();
-        if (e.button === 0) { pos.sub(normal.multiplyScalar(0.5)); const blockPos = { x: Math.floor(pos.x), y: Math.floor(pos.y), z: Math.floor(pos.z) }; const blockType = world.getBlock(blockPos.x, blockPos.y, blockPos.z); if (blockType !== CONSTANTS.BLOCK_TYPES.AIR && blockType !== CONSTANTS.BLOCK_TYPES.LAVA) { player.addItem(blockType, 1); world.setBlock(blockPos.x, blockPos.y, blockPos.z, CONSTANTS.BLOCK_TYPES.AIR); chunkManager.rebuildChunkAt(blockPos.x, blockPos.y, blockPos.z, assets.materials, assets.grassMaterials); updateFullUI(player, assets.textureDataURLs, CONSTANTS.BLOCK_TYPES); } }
-        else if (e.button === 2) { const item = player.inventory[player.selectedHotbarSlot]; if (!item || item.type === CONSTANTS.BLOCK_TYPES.AIR || item.count <= 0) return; pos.add(normal.multiplyScalar(0.5)); const newBlockPos = { x: Math.floor(pos.x), y: Math.floor(pos.y), z: Math.floor(pos.z) }; const pBox = player.getBoundingBox(); const nBBox = new THREE.Box3(new THREE.Vector3(newBlockPos.x, newBlockPos.y, newBlockPos.z), new THREE.Vector3(newBlockPos.x + 1, newBlockPos.y + 1, newBlockPos.z + 1)); if (!pBox.intersectsBox(nBBox) && world.getBlock(newBlockPos.x, newBlockPos.y, newBlockPos.z) === CONSTANTS.BLOCK_TYPES.AIR) { world.setBlock(newBlockPos.x, newBlockPos.y, newBlockPos.z, item.type); player.removeItem(player.selectedHotbarSlot, 1); chunkManager.rebuildChunkAt(newBlockPos.x, newBlockPos.y, newBlockPos.z, assets.materials, assets.grassMaterials); updateFullUI(player, assets.textureDataURLs, CONSTANTS.BLOCK_TYPES); } }
-    }
-});
-
 
 // ##################################################################
 // ##### NEUER ABSCHNITT: LOGIK FÜR INVENTAR-INTERAKTION #########
@@ -299,4 +289,129 @@ function initializeInventoryListeners() {
         // Nach jeder Aktion die gesamte UI neu zeichnen
         updateFullUI(player, assets.textureDataURLs, CONSTANTS.BLOCK_TYPES);
     });
+
+
+    window.addEventListener('mousedown', (e) => {
+        if (!gameRunning || !controls || !controls.isLocked) return;
+
+        raycaster.setFromCamera({ x: 0, y: 0 }, camera);
+        const iMeshes = chunkManager.getIntersectableMeshes();
+        const intersects = raycaster.intersectObjects(iMeshes, false);
+
+        if (intersects.length > 0) {
+            const intersection = intersects[0];
+            if (intersection.distance > CONSTANTS.PLAYER_REACH) return;
+
+            const pos = new THREE.Vector3().copy(intersection.point);
+            const normal = intersection.face.normal.clone();
+
+            // === BLOCK ABBAUEN (Linksklick) ===
+            if (e.button === 0) {
+                pos.sub(normal.multiplyScalar(0.5));
+                const blockPos = { x: Math.floor(pos.x), y: Math.floor(pos.y), z: Math.floor(pos.z) };
+                const blockType = world.getBlock(blockPos.x, blockPos.y, blockPos.z);
+
+                if (blockType !== CONSTANTS.BLOCK_TYPES.AIR && blockType !== CONSTANTS.BLOCK_TYPES.LAVA) {
+                    player.addItem(blockType, 1);
+                    world.setBlock(blockPos.x, blockPos.y, blockPos.z, CONSTANTS.BLOCK_TYPES.AIR);
+
+                    // Trigger für Blattverfall, wenn Holz oder Blätter abgebaut werden
+                    if (blockType === CONSTANTS.BLOCK_TYPES.WOOD || blockType === CONSTANTS.BLOCK_TYPES.LEAVES) {
+                        checkAdjacentLeaves(blockPos.x, blockPos.y, blockPos.z);
+                    }
+
+                    chunkManager.rebuildChunkAt(blockPos.x, blockPos.y, blockPos.z, assets.materials, assets.grassMaterials);
+                    updateFullUI(player, assets.textureDataURLs, CONSTANTS.BLOCK_TYPES);
+                }
+            }
+            // === BLOCK PLATZIEREN (Rechtsklick) ===
+            else if (e.button === 2) {
+                const item = player.inventory[player.selectedHotbarSlot];
+                if (!item || item.type === CONSTANTS.BLOCK_TYPES.AIR || item.count <= 0) return;
+
+                pos.add(normal.multiplyScalar(0.5));
+                const newBlockPos = { x: Math.floor(pos.x), y: Math.floor(pos.y), z: Math.floor(pos.z) };
+
+                const pBox = player.getBoundingBox();
+                const nBBox = new THREE.Box3(
+                    new THREE.Vector3(newBlockPos.x, newBlockPos.y, newBlockPos.z),
+                    new THREE.Vector3(newBlockPos.x + 1, newBlockPos.y + 1, newBlockPos.z + 1)
+                );
+
+                // Stelle sicher, dass der Platz frei ist und der Spieler nicht im Weg ist
+                if (!pBox.intersectsBox(nBBox) && world.getBlock(newBlockPos.x, newBlockPos.y, newBlockPos.z) === CONSTANTS.BLOCK_TYPES.AIR) {
+                    world.setBlock(newBlockPos.x, newBlockPos.y, newBlockPos.z, item.type);
+                    player.removeItem(player.selectedHotbarSlot, 1);
+                    chunkManager.rebuildChunkAt(newBlockPos.x, newBlockPos.y, newBlockPos.z, assets.materials, assets.grassMaterials);
+                    updateFullUI(player, assets.textureDataURLs, CONSTANTS.BLOCK_TYPES);
+                }
+            }
+        }
+    });
+
+// ##################################################################
+// ##### NEUER ABSCHNITT: LOGIK FÜR BLATTVERFALL #########
+// ##################################################################
+    function checkAdjacentLeaves(x, y, z) {
+        for (let dx = -1; dx <= 1; dx++) {
+            for (let dy = -1; dy <= 1; dy++) {
+                for (let dz = -1; dz <= 1; dz++) {
+                    if (dx === 0 && dy === 0 && dz === 0) continue;
+                    const nx = x + dx;
+                    const ny = y + dy;
+                    const nz = z + dz;
+                    if (world.getBlock(nx, ny, nz) === CONSTANTS.BLOCK_TYPES.LEAVES) {
+                        decayQueue.add(`${nx},${ny},${nz}`);
+                    }
+                }
+            }
+        }
+        // Starte die Verarbeitung, falls sie nicht schon läuft
+        if (!isProcessingDecay) {
+            processDecayQueue();
+        }
+    }
+
+    async function processDecayQueue() {
+        if (decayQueue.size === 0) {
+            isProcessingDecay = false;
+            return;
+        }
+        isProcessingDecay = true;
+
+        // Ein Element aus der Warteschlange nehmen
+        const blockKey = decayQueue.values().next().value;
+        decayQueue.delete(blockKey);
+
+        const [x, y, z] = blockKey.split(',').map(Number);
+
+        // Überprüfen, ob es sich noch um einen Blattblock handelt
+        if (world.getBlock(x, y, z) !== CONSTANTS.BLOCK_TYPES.LEAVES) {
+            setTimeout(processDecayQueue, 25); // Schnell zum nächsten
+            return;
+        }
+
+        // Prüfen, ob Holz in der Nähe ist
+        let hasWood = false;
+        const searchRadius = 3;
+        for (let dx = -searchRadius; dx <= searchRadius && !hasWood; dx++) {
+            for (let dy = -searchRadius; dy <= searchRadius && !hasWood; dy++) {
+                for (let dz = -searchRadius; dz <= searchRadius && !hasWood; dz++) {
+                    if (world.getBlock(x + dx, y + dy, z + dz) === CONSTANTS.BLOCK_TYPES.WOOD) {
+                        hasWood = true;
+                    }
+                }
+            }
+        }
+
+        // Wenn kein Holz gefunden wurde, Block entfernen und Nachbarn zur Prüfung hinzufügen
+        if (!hasWood) {
+            world.setBlock(x, y, z, CONSTANTS.BLOCK_TYPES.AIR);
+            chunkManager.rebuildChunkAt(x, y, z, assets.materials, assets.grassMaterials);
+            checkAdjacentLeaves(x, y, z); // Kettenreaktion
+        }
+
+        // Nächste Prüfung mit kurzer Verzögerung planen
+        setTimeout(processDecayQueue, 50);
+    }
 }

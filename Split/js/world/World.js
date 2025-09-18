@@ -50,6 +50,7 @@ export class World {
             }
         }
         this.generateOres();
+        this.generateTrees(); // NEU: Bäume nach allem anderen generieren
     }
 
     generateOres() {
@@ -78,6 +79,41 @@ export class World {
             c.z += Math.floor(Math.random() * 3) - 1;
         }
     }
+    generateTree(x, y, z) {
+        const height = Math.floor(Math.random() * 3) + 4; // Stammhöhe 4-6 Blöcke
+        // Stamm bauen
+        for (let i = 0; i < height; i++) {
+            this.setBlock(x, y + i, z, BLOCK_TYPES.WOOD);
+        }
+
+        // Blätterdach (Krone)
+        const topY = y + height;
+        for (let dx = -2; dx <= 2; dx++) {
+            for (let dy = -1; dy <= 1; dy++) {
+                for (let dz = -2; dz <= 2; dz++) {
+                    const d = Math.sqrt(dx*dx + dy*dy*2 + dz*dz);
+                    if (d <= 2.5) {
+                        this.setBlock(x + dx, topY + dy, z + dz, BLOCK_TYPES.LEAVES);
+                    }
+                }
+            }
+        }
+    }
+
+    generateTrees() {
+        for (let x = 2; x < WORLD_SIZE_X - 2; x++) {
+            for (let z = 2; z < WORLD_SIZE_Z - 2; z++) {
+                if (Math.random() < 0.005) { // Baum-Dichte
+                    const y = this.getSurfaceY(x, z);
+                    const groundBlock = this.getBlock(x, y - 1, z);
+                    if (groundBlock === BLOCK_TYPES.GRASS) {
+                        this.generateTree(x, y, z);
+                    }
+                }
+            }
+        }
+    }
+
     getSurfaceY(x, z) {
         for (let y = (WORLD_SIZE_Y + WORLD_MIN_Y) - 1; y > WORLD_MIN_Y; y--) {
             const block = this.getBlock(Math.floor(x), y, Math.floor(z));

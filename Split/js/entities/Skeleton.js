@@ -1,3 +1,5 @@
+// Split/js/entities/Skeleton.js
+
 import * as THREE from 'three';
 import { Entity } from './Entity.js';
 
@@ -13,22 +15,24 @@ export class Skeleton extends Entity {
         // Kopf
         const head = new THREE.Group();
         const mainHead = new THREE.Mesh(new THREE.BoxGeometry(0.6, 0.6, 0.6), boneMaterial);
+
+        // --- KORREKTUR DER AUGENPOSITION ---
+        // Die Augen sind jetzt auf der +Z-Achse (vorne) platziert.
         const eye1 = new THREE.Mesh(new THREE.BoxGeometry(0.15, 0.15, 0.1), blackMaterial);
-        eye1.position.set(-0.31, 0.1, 0.1);
+        eye1.position.set(0.15, 0.1, 0.31);
         const eye2 = new THREE.Mesh(new THREE.BoxGeometry(0.15, 0.15, 0.1), blackMaterial);
-        eye2.position.set(-0.31, 0.1, -0.1);
+        eye2.position.set(-0.15, 0.1, 0.31);
+
         head.add(mainHead, eye1, eye2);
         head.position.set(0, 1.5, 0);
 
-        // Körper & Arme
+        // (Restlicher Code für Körper, Arme, Beine bleibt gleich)
         const torso = new THREE.Mesh(new THREE.BoxGeometry(0.7, 1.0, 0.4), boneMaterial);
         torso.position.y = 0.7;
         const armLeft = new THREE.Mesh(new THREE.BoxGeometry(0.2, 1.0, 0.2), boneMaterial);
         armLeft.position.set(-0.45, 0.7, 0);
         const armRight = new THREE.Mesh(new THREE.BoxGeometry(0.2, 1.0, 0.2), boneMaterial);
         armRight.position.set(0.45, 0.7, 0);
-
-        // Beine
         const legLeft = new THREE.Mesh(new THREE.BoxGeometry(0.25, 1.0, 0.25), boneMaterial);
         legLeft.position.set(-0.15, -0.3, 0);
         const legRight = new THREE.Mesh(new THREE.BoxGeometry(0.25, 1.0, 0.25), boneMaterial);
@@ -40,6 +44,7 @@ export class Skeleton extends Entity {
         this.stateTimer = Math.random() * 5;
         this.seekDistance = 15;
     }
+
 
     update(dt, playerPos) {
         this.stateTimer -= dt;
@@ -62,14 +67,11 @@ export class Skeleton extends Entity {
             this.velocity.x = direction.x * 2.5;
             this.velocity.z = direction.z * 2.5;
         }
-        if (this.velocity.lengthSq() > 0.1 && this.on_ground()) {
-            const forwardDir = this.velocity.clone().normalize();
-            const checkPos = this.pos.clone().add(forwardDir.multiplyScalar(this.width));
-            if (this.world.isBlockAt(checkPos.x, this.pos.y + 0.5, checkPos.z)) {
-                this.velocity.y = this.jump_force;
-            }
+        if (this.velocity.lengthSq() > 0.1) {
+            this.mesh.rotation.y = Math.atan2(this.velocity.x, this.velocity.z);
         }
-        this.mesh.rotation.y = Math.atan2(this.velocity.x, this.velocity.z);
+
         super.update(dt);
     }
+
 }
