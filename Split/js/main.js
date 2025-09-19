@@ -374,6 +374,12 @@ function processGrassConversion() {
 
 // In Split/js/main.js
 
+// In Split/js/main.js
+
+// In Split/js/main.js
+
+// In Split/js/main.js
+
 function processSaplingGrowth() {
     if (saplingGrowthQueue.size === 0) return;
 
@@ -383,19 +389,31 @@ function processSaplingGrowth() {
     for (const [key, startTime] of saplingGrowthQueue.entries()) {
         if (now - startTime > growthTime) {
             const [x, y, z] = key.split(',').map(Number);
-
-            // NEU: Überprüfen, ob der Spieler im Weg ist
             const playerBoundingBox = player.getBoundingBox();
             const saplingBox = new THREE.Box3(
                 new THREE.Vector3(x, y, z),
-                new THREE.Vector3(x + 1, y + 1, z + 1)
+                new THREE.Vector3(x + 1, y + 1.5, z + 1)
             );
 
-            if (world.getBlock(x, y, z) === CONSTANTS.BLOCK_TYPES.SAPLING && !playerBoundingBox.intersectsBox(saplingBox)) {
-                world.generateTree(x, y, z);
-                // ... (Chunks neu bauen)
+            if (world.getBlock(x, y, z) === CONSTANTS.BLOCK_TYPES.SAPLING) {
+                if (!playerBoundingBox.intersectsBox(saplingBox)) {
+                    world.generateTree(x, y, z);
+
+                    // KORREKTUR: Alle Chunks im Umkreis des Baumes neu laden
+                    for (let dx = -2; dx <= 2; dx++) {
+                        for (let dz = -2; dz <= 2; dz++) {
+                            for (let dy = 0; dy <= 6; dy++) {
+                                chunkManager.rebuildChunkAt(x + dx, y + dy, z + dz, assets.materials, assets.grassMaterials);
+                            }
+                        }
+                    }
+                    saplingGrowthQueue.delete(key);
+                } else {
+                    saplingGrowthQueue.set(key, now);
+                }
+            } else {
+                saplingGrowthQueue.delete(key);
             }
-            saplingGrowthQueue.delete(key);
         }
     }
 }
@@ -478,26 +496,75 @@ function processDirtToGrassConversion() {
     }
 }
 
+
 // Initialer Start des Setups - Dieser Listener wird nur einmal beim Laden der Seite ausgeführt
 document.addEventListener('DOMContentLoaded', () => {
-    // Menü-Buttons initialisieren, damit sie von Anfang an klickbar sind
+    // --- Alle Menü-Buttons initialisieren ---
+
+    // Hauptmenü
     document.getElementById('new-world-btn').addEventListener('click', () => initGame(true));
     document.getElementById('load-world-btn').addEventListener('click', async () => {
         const data = await dbManager.loadGame();
         if (data.worldData && data.playerData) initGame(false, data);
     });
-    document.getElementById('settings-btn').addEventListener('click', () => { hideUI(mainMenu); showUI(settingsMenu); });
+    document.getElementById('settings-btn').addEventListener('click', () => {
+        hideUI(mainMenu);
+        showUI(settingsMenu);
+    });
 
+    // Einstellungsmenü
+    const viewDistSlider = document.getElementById('view-distance-slider');
+    const viewDistValue = document.getElementById('view-distance-value');
+    const texQualitySelect = document.getElementById('texture-quality-select');
+
+    document.getElementById('back-btn').addEventListener('click', async () => {
+        const newQuality = texQualitySelect.value;
+        const qualityChanged = settingsManager.settings.textureQuality !== newQuality;
+        settingsManager.settings.viewDistance = parseInt(viewDistSlider.value);
+        settingsManager.settings.textureQuality = newQuality;
+        settingsManager.save();
+
+        if (gameRunning && qualityChanged) {
+            loadingText.textContent = 'Texturen werden aktualisiert...';
+            showUI(loadingOverlay);
+            await new Promise(r => setTimeout(r, 50));
+            assets = generateAssets(settingsManager.settings, CONSTANTS, renderer);
+            chunkManager.chunks.forEach(chunk => chunk.dispose());
+            chunkManager.chunks.clear();
+            updateFullUI(player, assets.textureDataURLs, CONSTANTS.BLOCK_TYPES);
+            hideUI(loadingOverlay);
+        }
+        hideUI(settingsMenu);
+        if (gameRunning) {
+            showUI(pauseMenu);
+        } else {
+            showUI(mainMenu);
+        }
+    });
+
+    // Pause-Menü
+    document.getElementById('resume-btn').addEventListener('click', () => { if (controls) controls.lock(); });
+    document.getElementById('settings-pause-btn').addEventListener('click', () => { hideUI(pauseMenu); showUI(settingsMenu); });
+    document.getElementById('save-btn').addEventListener('click', async (e) => {
+        e.target.textContent = 'Speichern...';
+        await dbManager.saveGame(world.data, player.getState());
+        e.target.textContent = 'Gespeichert!';
+        setTimeout(() => { e.target.textContent = 'Spiel speichern'; }, 2000);
+    });
+    document.getElementById('quit-to-main-btn').addEventListener('click', quitToMainMenu);
+
+
+    // --- Initialisierung der Datenbank und UI ---
     showUI(mainMenu);
     dbManager.init().then(() => {
         dbManager.hasSaveGame().then(hasSave => {
             document.getElementById('load-world-btn').disabled = !hasSave;
         });
     });
-    const viewDistSlider = document.getElementById('view-distance-slider');
-    const viewDistValue = document.getElementById('view-distance-value');
+
+    // Einstellungen laden und anzeigen
     viewDistSlider.value = settingsManager.settings.viewDistance;
     viewDistValue.textContent = settingsManager.settings.viewDistance;
     viewDistSlider.addEventListener('input', (e) => { viewDistValue.textContent = e.target.value; });
-    document.getElementById('texture-quality-select').value = settingsManager.settings.textureQuality;
+    texQualitySelect.value = settingsManager.settings.textureQuality;
 });

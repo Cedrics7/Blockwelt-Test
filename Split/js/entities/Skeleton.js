@@ -62,21 +62,52 @@ export class Skeleton extends Entity {
                 this.velocity.z = Math.sin(angle);
             }
         }
+
         if (this.state === 'seek') {
             const direction = playerPos.clone().sub(this.pos).normalize();
-            this.velocity.x = direction.x * 2.5;
-            this.velocity.z = direction.z * 2.5;
-        }
-// NEU: Sprung-Logik hier einfügen
-        if (this.velocity.lengthSq() > 0.1 && this.on_ground()) {
-            const forwardDir = this.velocity.clone().normalize();
-            const checkPos = this.pos.clone().add(forwardDir.multiplyScalar(this.width));
-            if (this.world.isBlockAt(checkPos.x, this.pos.y + 0.5, checkPos.z)) {
-                this.velocity.y = this.jump_force;
+            const baseSpeed = 2.5;
+
+            // Wir initialisieren die geplante horizontale Bewegung
+            let horizontalVelocity = direction.clone().multiplyScalar(baseSpeed);
+
+            // --- FINALE, VERBESSERTE SPRUNG- UND AUSWEICH-LOGIK ---
+
+            // Nur am Boden auf Hindernisse prüfen, um unnötige Berechnungen in der Luft zu vermeiden
+            if (this.on_ground()) {
+                // Wir schauen etwas weiter nach vorne (0.8 Einheiten) für mehr Reaktionszeit
+                const lookAheadDistance = 0.8;
+                const checkPos = this.pos.clone().add(direction.clone().multiplyScalar(lookAheadDistance));
+
+                // Wir prüfen leicht über dem Boden (+0.2) und leicht unter dem Kopf (höhe * 0.9).
+                // Das macht die Erkennung auf unebenem Gelände robuster.
+                const isBlockAtFeet = this.world.isBlockAt(checkPos.x, this.pos.y + 0.2, checkPos.z);
+                const isBlockAtHead = this.world.isBlockAt(checkPos.x, this.pos.y + this.height * 0.9, checkPos.z);
+
+                // FALL 1: Wand im Weg -> Entlang der Wand gleiten (Wall Slide) 🧱
+                if (isBlockAtFeet && isBlockAtHead) {
+                    // Berechne eine Tangente zur Wand (90-Grad-Drehung der Richtung um die Y-Achse).
+                    // Dies erzeugt eine "sliding" Bewegung, anstatt abrupt zu stoppen.
+                    // Der zweite Parameter (PI / 2) bestimmt die Richtung (links oder rechts).
+                    // Man könnte dies zufällig machen, aber eine feste Richtung ist einfacher.
+                    horizontalVelocity = direction.clone().applyAxisAngle(new THREE.Vector3(0, 1, 0), Math.PI / 2).multiplyScalar(baseSpeed * 0.9); // Etwas langsamer beim Gleiten
+                }
+                // FALL 2: Sprung-Hindernis -> Springen ✅
+                else if (isBlockAtFeet) { // 'isBlockAtHead' ist hier implizit 'false'
+                    this.velocity.y = this.jump_force; // Wichtig: jump_force muss in Entity.js definiert sein!
+                }
+            }
+
+            // Wende die finale, berechnete horizontale Geschwindigkeit an
+            this.velocity.x = horizontalVelocity.x;
+            this.velocity.z = horizontalVelocity.z;
+
+            // Mesh-Rotation basierend auf der finalen Bewegung
+            if (horizontalVelocity.lengthSq() > 0.1) {
+                this.mesh.rotation.y = Math.atan2(this.velocity.x, this.velocity.z);
             }
         }
 
-        if (this.velocity.lengthSq() > 0.1) {
-            this.mesh.rotation.y = Math.atan2(this.velocity.x, this.velocity.z);
-        }
-        super.update(dt);}}
+        super.update(dt);
+    }
+}
+

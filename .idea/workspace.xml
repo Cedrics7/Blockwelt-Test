@@ -4,9 +4,11 @@
     <option name="autoReloadType" value="SELECTIVE" />
   </component>
   <component name="ChangeListManager">
-    <list default="true" id="9c6a33f9-1798-4a05-bf3e-b729840ddb49" name="Changes" comment="Neue Logik">
+    <list default="true" id="9c6a33f9-1798-4a05-bf3e-b729840ddb49" name="Changes" comment="Bäume und Gras">
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/Split/js/entities/Skeleton.js" beforeDir="false" afterPath="$PROJECT_DIR$/Split/js/entities/Skeleton.js" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/Split/js/main.js" beforeDir="false" afterPath="$PROJECT_DIR$/Split/js/main.js" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/Split/js/world/Chunk.js" beforeDir="false" afterPath="$PROJECT_DIR$/Split/js/world/Chunk.js" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/Split/js/world/World.js" beforeDir="false" afterPath="$PROJECT_DIR$/Split/js/world/World.js" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
@@ -141,7 +143,7 @@
       <workItem from="1758131635787" duration="400000" />
       <workItem from="1758190837492" duration="29670000" />
       <workItem from="1758277544245" duration="451000" />
-      <workItem from="1758278012623" duration="1573000" />
+      <workItem from="1758278012623" duration="4279000" />
     </task>
     <task id="LOCAL-00001" summary="upload">
       <option name="closed" value="true" />
@@ -247,7 +249,15 @@
       <option name="project" value="LOCAL" />
       <updated>1758232394664</updated>
     </task>
-    <option name="localTasksCounter" value="14" />
+    <task id="LOCAL-00014" summary="Bäume und Gras">
+      <option name="closed" value="true" />
+      <created>1758279742312</created>
+      <option name="number" value="00014" />
+      <option name="presentableId" value="LOCAL-00014" />
+      <option name="project" value="LOCAL" />
+      <updated>1758279742312</updated>
+    </task>
+    <option name="localTasksCounter" value="15" />
     <servers />
   </component>
   <component name="TypeScriptGeneratedFilesManager">
@@ -260,6 +270,7 @@
     <MESSAGE value="Bäume + neue Logik" />
     <MESSAGE value="Performance" />
     <MESSAGE value="Neue Logik" />
-    <option name="LAST_COMMIT_MESSAGE" value="Neue Logik" />
+    <MESSAGE value="Bäume und Gras" />
+    <option name="LAST_COMMIT_MESSAGE" value="Bäume und Gras" />
   </component>
 </project>

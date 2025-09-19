@@ -143,3 +143,21 @@ function addFace(data, pos, dir) {
     indices.push(i, i + 1, i + 2, i, i + 2, i + 3);
     data.index += 4;
 }
+
+// Neue Hilfsfunktion, um die Geometrie für gekreuzte Flächen zu erstellen
+function addCrossGeometry(data, pos) {
+    const { positions, normals, uvs, indices } = data;
+    const i = data.index;
+
+    // Erste Fläche (diagonal)
+    positions.push(pos[0], pos[1], pos[2],  pos[0] + 1, pos[1], pos[2] + 1,  pos[0] + 1, pos[1] + 1, pos[2] + 1,  pos[0], pos[1] + 1, pos[2]);
+    uvs.push(0,0, 1,0, 1,1, 0,1);
+    indices.push(i, i + 1, i + 2, i, i + 2, i + 3);
+
+    // Zweite Fläche (andere Diagonale)
+    positions.push(pos[0], pos[1], pos[2] + 1,  pos[0] + 1, pos[1], pos[2],  pos[0] + 1, pos[1] + 1, pos[2],  pos[0], pos[1] + 1, pos[2] + 1);
+    uvs.push(0,0, 1,0, 1,1, 0,1);
+    indices.push(i + 4, i + 5, i + 6, i + 4, i + 6, i + 7);
+
+    data.index += 8;
+}

@@ -152,6 +152,6 @@ export class World {
 
     isBlockAt(x, y, z) {
         const b = this.getBlock(Math.floor(x), Math.floor(y), Math.floor(z));
-        return b !== 0 && b !== BLOCK_TYPES.LAVA;
+        return b !== BLOCK_TYPES.AIR && b !== BLOCK_TYPES.LAVA && b !== BLOCK_TYPES.SAPLING;
     }
 }
