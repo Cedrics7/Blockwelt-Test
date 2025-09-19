@@ -1,8 +1,7 @@
-import { ItemEntity } from './entities/ItemEntity.js';
+// Korrigierte Import-Reihenfolge
 import * as THREE from 'three';
 import { PointerLockControls } from 'three/addons/controls/PointerLockControls.js';
-
-// Lokale Module importieren
+import { ItemEntity } from './entities/ItemEntity.js';
 import * as CONSTANTS from './constants.js';
 import { SettingsManager } from './managers/SettingsManager.js';
 import { DBManager } from './managers/DBManager.js';
@@ -20,16 +19,20 @@ let gameLoopId;
 const clock = new THREE.Clock();
 const keys = {};
 
-
-// NEU: Zustand für Drag & Drop
+// --- Zustand für Drag & Drop ---
 let draggedItemStack = null;
 
 // --- Manager Instanzen ---
 const settingsManager = new SettingsManager();
 const dbManager = new DBManager();
 
+// --- Warteschlangen für dynamische Welt-Events ---
+const decayQueue = new Set();
+const grassConversionQueue = new Map();
+const saplingGrowthQueue = new Map();
+let isProcessingDecay = false;
+
 // --- DOM-Elemente holen ---
-// (Dieser Abschnitt bleibt unverändert)
 const mainMenu = document.getElementById('main-menu');
 const settingsMenu = document.getElementById('settings-menu');
 const pauseMenu = document.getElementById('pause-menu');
@@ -37,63 +40,35 @@ const loadingOverlay = document.getElementById('loading-overlay');
 const loadingText = document.getElementById('loading-text');
 const gameCanvas = document.getElementById('game-canvas');
 const deathScreen = document.getElementById('death-screen');
-const hotbarDiv = document.getElementById('hotbar');
 const inventoryScreen = document.getElementById('inventory-screen');
 const crosshair = document.getElementById('crosshair');
-const viewDistSlider = document.getElementById('view-distance-slider');
-const viewDistValue = document.getElementById('view-distance-value');
-const texQualitySelect = document.getElementById('texture-quality-select');
 const healthBarContainer = document.getElementById('health-bar-container');
 const raycaster = new THREE.Raycaster();
-// Oben bei den globalen Variablen
-const decayQueue = new Set();
-const grassConversionQueue = new Map(); // NEU
-let isProcessingDecay = false;
-const saplingGrowthQueue = new Map(); // NEU
 
-function processGrassConversion() {
-    if (grassConversionQueue.size === 0) return;
 
-    const conversionTime = 10000; // 10 Sekunden
-    const now = Date.now();
-
-    for (const [key, startTime] of grassConversionQueue.entries()) {
-        if (now - startTime > conversionTime) {
-            const [x, y, z] = key.split(',').map(Number);
-
-            // Prüfen, ob der Block darüber noch da ist und der untere Block noch Gras ist
-            const blockAbove = world.getBlock(x, y + 1, z);
-            const currentBlock = world.getBlock(x, y, z);
-
-            if (blockAbove !== CONSTANTS.BLOCK_TYPES.AIR && currentBlock === CONSTANTS.BLOCK_TYPES.GRASS) {
-                world.setBlock(x, y, z, CONSTANTS.BLOCK_TYPES.DIRT);
-                chunkManager.rebuildChunkAt(x, y, z, assets.materials, assets.grassMaterials);
-            }
-            grassConversionQueue.delete(key);
-        }
-    }
-}
+// --- Haupt-Spiellogik ---
 
 async function initGame(isNew, loadedData) {
-    // ... (initGame bleibt größtenteils gleich)
     hideUI(mainMenu);
     showUI(loadingOverlay);
     await new Promise(resolve => setTimeout(resolve, 50));
+
     scene = new THREE.Scene();
     scene.background = new THREE.Color(0x87CEEB);
     renderer = new THREE.WebGLRenderer({ canvas: gameCanvas, antialias: true });
     renderer.setSize(window.innerWidth, window.innerHeight);
     camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
     controls = new PointerLockControls(camera, renderer.domElement);
-    controls.addEventListener('unlock', () => { if (gameRunning && !isInventoryOpen) { isPaused = true; showUI(pauseMenu); } });
-    controls.addEventListener('lock', () => { if (gameRunning) { isPaused = false; hideUI(pauseMenu); } });
+
     const ambientLight = new THREE.AmbientLight(0xffffff, 0.6);
     const directionalLight = new THREE.DirectionalLight(0xffffff, 0.8);
     directionalLight.position.set(50, 50, 50);
     scene.add(ambientLight, directionalLight);
+
     world = new World();
     player = new Player(world);
     entityManager = new EntityManager(scene, world);
+
     if (isNew) {
         loadingText.textContent = 'Welt wird generiert...';
         await new Promise(resolve => setTimeout(() => {
@@ -109,22 +84,24 @@ async function initGame(isNew, loadedData) {
         world.init(loadedData.worldData);
         player.setState(loadedData.playerData);
     }
+
     loadingText.textContent = 'Assets werden erstellt...';
     await new Promise(resolve => setTimeout(() => {
         assets = generateAssets(settingsManager.settings, CONSTANTS, renderer);
         resolve();
     }, 50));
-    chunkManager = new ChunkManager(scene, world, assets.blockGeometry);
+
+    chunkManager = new ChunkManager(scene, world);
+
     hideUI(loadingOverlay);
     showUI(gameCanvas);
-    showUI(hotbarDiv);
+    showUI(document.getElementById('hotbar'));
     showUI(crosshair);
-    showUI(healthBarContainer); // Gesundheitsleiste einblenden
+    showUI(healthBarContainer);
+
     setupGameUI(CONSTANTS.INVENTORY_SIZE);
     updateFullUI(player, assets.textureDataURLs, CONSTANTS.BLOCK_TYPES);
-
-    // NEU: Event Listener für das Inventar einmalig initialisieren
-    initializeInventoryListeners();
+    initializeInGameEventListeners();
 
     controls.lock();
     gameRunning = true;
@@ -133,39 +110,44 @@ async function initGame(isNew, loadedData) {
     animate();
 }
 
-// ... (animate, handlePlayerDeath, quitToMainMenu bleiben unverändert)
 function animate() {
     if (!gameRunning) return;
-    processSaplingGrowth(); // NEUER AUFRUF
     gameLoopId = requestAnimationFrame(animate);
     const dt = clock.getDelta();
+
     if (!isPaused && !isPlayerDead) {
         player.update(dt, keys, camera);
-
+        processDirtToGrassConversion(); // NEUER AUFRUF
         if (player.isDead) {
             handlePlayerDeath();
         } else {
             entityManager.entities.forEach((entity, index) => {
-                // ALT: entity.update(dt, player.pos);
-                // NEU: Kamera für Billboard-Effekt übergeben
-                entity.update(dt, player, camera);
+                if (entity instanceof ItemEntity) {
+                    entity.update(dt, player, camera);
+                } else {
+                    entity.update(dt, player.pos);
+                }
 
-                // NEU: Aufgesammelte oder despawnte Items entfernen
                 if (entity.shouldBeRemoved) {
                     entity.remove();
                     entityManager.entities.splice(index, 1);
-                    updateFullUI(player, assets.textureDataURLs, CONSTANTS.BLOCK_TYPES); // UI aktualisieren
-                }
-
-                const distance = entity.pos.distanceTo(player.pos);
-                // Verhindere, dass Items zu früh despawnen
-                if (distance > entityManager.spawnRadius + 40 && !(entity instanceof ItemEntity)) {
-                    entity.remove();
-                    entityManager.entities.splice(index, 1);
+                    updateFullUI(player, assets.textureDataURLs, CONSTANTS.BLOCK_TYPES);
+                } else if (!(entity instanceof ItemEntity)) {
+                    const distance = entity.pos.distanceTo(player.pos);
+                    if (distance > entityManager.spawnRadius + 40) {
+                        entity.remove();
+                        entityManager.entities.splice(index, 1);
+                    }
                 }
             });
+
+            if (entityManager.entities.length < entityManager.maxEntities && Math.random() < 0.1) {
+                entityManager.trySpawn(player.pos);
+            }
+
             chunkManager.update(player.pos, assets.materials, assets.grassMaterials, settingsManager.settings);
-            processGrassConversion(); // NEUER AUFRUF
+            processGrassConversion();
+            processSaplingGrowth();
             updateFullUI(player, assets.textureDataURLs, CONSTANTS.BLOCK_TYPES);
         }
     }
@@ -177,20 +159,23 @@ function animate() {
 function handlePlayerDeath() {
     if (isPlayerDead) return;
     isPlayerDead = true;
-    controls.unlock();
+    controls.unlock(); // Stellt sicher, dass die Maus frei ist
     deathScreen.textContent = "Du bist gestorben!";
     showUI(deathScreen);
+
+    // Setzt den Spieler zurück und belebt ihn wieder
     setTimeout(() => {
         hideUI(deathScreen);
-        const respawnX = Math.floor(Math.random() * CONSTANTS.WORLD_SIZE_X);
-        const respawnZ = Math.floor(Math.random() * CONSTANTS.WORLD_SIZE_Z);
+        const respawnX = CONSTANTS.WORLD_SIZE_X / 2;
+        const respawnZ = CONSTANTS.WORLD_SIZE_Z / 2;
         const respawnY = world.getSurfaceY(respawnX, respawnZ);
         player.pos.set(respawnX + 0.5, respawnY, respawnZ + 0.5);
-        player.respawn();
-        isPlayerDead = false;
-        // controls.lock(); // Optional: Spiel direkt fortsetzen
+        player.respawn(); // Setzt Leben und Status zurück
+        isPlayerDead = false; // WICHTIG: Status zurücksetzen
+        // Entfernt den optionalen auto-lock, damit der Spieler im Menü bleiben kann
     }, 2000);
 }
+
 function quitToMainMenu() {
     gameRunning = false;
     isPaused = false;
@@ -198,333 +183,321 @@ function quitToMainMenu() {
     if (controls) controls.unlock();
     if (scene) {
         while (scene.children.length > 0) {
-            scene.remove(scene.children[0]); }
-    } hideUI(gameCanvas);
-    hideUI(hotbarDiv);
+            scene.remove(scene.children[0]);
+        }
+    }
+    hideUI(gameCanvas);
+    hideUI(document.getElementById('hotbar'));
     hideUI(crosshair);
     hideUI(pauseMenu);
     hideUI(inventoryScreen);
     hideUI(deathScreen);
-    hideUI(healthBarContainer); // << NEU: Health Bar hier ausblenden
+    hideUI(healthBarContainer);
     showUI(mainMenu);
     dbManager.hasSaveGame().then(hasSave => {
-        document.getElementById('load-world-btn').disabled = !hasSave; }); }
+        document.getElementById('load-world-btn').disabled = !hasSave;
+    });
+}
 
+// --- Event Listener Initialisierung ---
+function initializeInGameEventListeners() {
+    // Globale Events
+    const keydownHandler = (e) => {
+        keys[e.code] = true;
+        if (!gameRunning || isPlayerDead) return;
+        if (e.code === 'Escape') {
+            if (isInventoryOpen) {
+                isInventoryOpen = false;
+                hideUI(inventoryScreen);
+                controls.lock();
+            } else if (controls.isLocked) {
+                controls.unlock();
+            }
+        }
+        if (e.code === 'KeyI') {
+            isInventoryOpen = !isInventoryOpen;
+            if (isInventoryOpen) {
+                controls.unlock();
+                showUI(inventoryScreen);
+            } else {
+                hideUI(inventoryScreen);
+                if (!isPaused) controls.lock();
+            }
+        }
+        if (!isPaused && controls.isLocked && e.code.startsWith('Digit')) {
+            const i = parseInt(e.code.slice(5)) - 1;
+            if (i >= 0 && i < 9) {
+                player.selectedHotbarSlot = i;
+                updateFullUI(player, assets.textureDataURLs, CONSTANTS.BLOCK_TYPES);
+            }
+        }
+    };
+    const keyupHandler = (e) => { keys[e.code] = false; };
+    const resizeHandler = () => {
+        if (gameRunning && camera && renderer) {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        }
+    };
 
-// --- Event Listener Setup ---
+    document.addEventListener('keydown', keydownHandler);
+    document.addEventListener('keyup', keyupHandler);
+    window.addEventListener('resize', resizeHandler);
+    window.addEventListener('contextmenu', (e) => e.preventDefault());
+    gameCanvas.addEventListener('click', () => { if (gameRunning && !isPlayerDead && !isPaused) { controls.lock(); } });
+    controls.addEventListener('unlock', () => { if (gameRunning && !isInventoryOpen) { isPaused = true; showUI(pauseMenu); } });
+    controls.addEventListener('lock', () => { if (gameRunning) { isPaused = false; hideUI(pauseMenu); } });
+
+    // Inventar-Interaktion
+    const draggedItemDiv = document.getElementById('dragged-item');
+    const inventoryContainer = document.getElementById('inventory-screen');
+    const mouseMoveHandler = (e) => {
+        if (draggedItemStack) {
+            draggedItemDiv.style.left = `${e.clientX}px`;
+            draggedItemDiv.style.top = `${e.clientY}px`;
+        }
+    };
+    const inventoryMouseDownHandler = (e) => {
+        if (!isInventoryOpen || !player) return;
+        const targetSlot = e.target.closest('.slot');
+        if (targetSlot) {
+            const slotIndex = parseInt(targetSlot.dataset.index);
+            const itemInSlot = player.inventory[slotIndex];
+            if (draggedItemStack) {
+                player.inventory[draggedItemStack.originalIndex] = itemInSlot;
+                player.inventory[slotIndex] = draggedItemStack.item;
+                draggedItemStack = null;
+                hideUI(draggedItemDiv);
+            } else if (itemInSlot && itemInSlot.type !== CONSTANTS.BLOCK_TYPES.AIR) {
+                draggedItemStack = { item: itemInSlot, originalIndex: slotIndex };
+                player.inventory[slotIndex] = { type: CONSTANTS.BLOCK_TYPES.AIR, count: 0 };
+                const draggedItemCount = draggedItemDiv.querySelector('.slot-count');
+                draggedItemDiv.style.backgroundImage = `url(${assets.textureDataURLs[draggedItemStack.item.type]})`;
+                draggedItemCount.textContent = draggedItemStack.item.count > 1 ? draggedItemStack.item.count : '';
+                showUI(draggedItemDiv);
+            }
+        } else if (draggedItemStack) {
+            draggedItemStack = null;
+            hideUI(draggedItemDiv);
+        }
+        updateFullUI(player, assets.textureDataURLs, CONSTANTS.BLOCK_TYPES);
+    };
+
+    window.addEventListener('mousemove', mouseMoveHandler);
+    inventoryContainer.addEventListener('mousedown', inventoryMouseDownHandler);
+
+    // Block-Interaktion
+    const blockInteractionHandler = (e) => {
+        if (!gameRunning || !controls || !controls.isLocked) return;
+        raycaster.setFromCamera({ x: 0, y: 0 }, camera);
+        const iMeshes = chunkManager.getIntersectableMeshes();
+        const intersects = raycaster.intersectObjects(iMeshes, false);
+        if (intersects.length > 0) {
+            const intersection = intersects[0];
+            if (intersection.distance > CONSTANTS.PLAYER_REACH) return;
+            const pos = new THREE.Vector3().copy(intersection.point);
+            const normal = intersection.face.normal.clone();
+
+            if (e.button === 0) { // Abbauen
+                pos.sub(normal.multiplyScalar(0.5));
+                const blockPos = { x: Math.floor(pos.x), y: Math.floor(pos.y), z: Math.floor(pos.z) };
+                const blockType = world.getBlock(blockPos.x, blockPos.y, blockPos.z);
+                if (blockType !== CONSTANTS.BLOCK_TYPES.AIR && blockType !== CONSTANTS.BLOCK_TYPES.LAVA) {
+                    player.addItem(blockType, 1);
+                    world.setBlock(blockPos.x, blockPos.y, blockPos.z, CONSTANTS.BLOCK_TYPES.AIR);
+                    if (blockType === CONSTANTS.BLOCK_TYPES.LEAVES && Math.random() < 0.05) {
+                        const dropPos = new THREE.Vector3(blockPos.x + 0.5, blockPos.y + 0.5, blockPos.z + 0.5);
+                        // KORREKTUR: Greift auf die Textur aus dem `assets`-Objekt zu
+                        entityManager.spawnItemEntity(dropPos, CONSTANTS.BLOCK_TYPES.SAPLING, assets.materials[CONSTANTS.BLOCK_TYPES.SAPLING].map);
+                    }
+                    if (blockType === CONSTANTS.BLOCK_TYPES.WOOD || blockType === CONSTANTS.BLOCK_TYPES.LEAVES) {
+                        checkAdjacentLeaves(blockPos.x, blockPos.y, blockPos.z);
+                    }
+                    chunkManager.rebuildChunkAt(blockPos.x, blockPos.y, blockPos.z, assets.materials, assets.grassMaterials);
+                    updateFullUI(player, assets.textureDataURLs, CONSTANTS.BLOCK_TYPES);
+                }
+            } else if (e.button === 2) { // Platzieren
+                const item = player.inventory[player.selectedHotbarSlot];
+                if (!item || item.type === CONSTANTS.BLOCK_TYPES.AIR || item.count <= 0) return;
+                pos.add(normal.multiplyScalar(0.5));
+                const newBlockPos = { x: Math.floor(pos.x), y: Math.floor(pos.y), z: Math.floor(pos.z) };
+                const pBox = player.getBoundingBox();
+                const nBBox = new THREE.Box3(new THREE.Vector3(newBlockPos.x, newBlockPos.y, newBlockPos.z), new THREE.Vector3(newBlockPos.x + 1, newBlockPos.y + 1, newBlockPos.z + 1));
+                if (!pBox.intersectsBox(nBBox) && world.getBlock(newBlockPos.x, newBlockPos.y, newBlockPos.z) === CONSTANTS.BLOCK_TYPES.AIR) {
+                    let blockPlaced = false;
+                    if (item.type === CONSTANTS.BLOCK_TYPES.SAPLING) {
+                        const groundBlock = world.getBlock(newBlockPos.x, newBlockPos.y - 1, newBlockPos.z);
+                        if (groundBlock === CONSTANTS.BLOCK_TYPES.GRASS || groundBlock === CONSTANTS.BLOCK_TYPES.DIRT) {
+                            world.setBlock(newBlockPos.x, newBlockPos.y, newBlockPos.z, item.type);
+                            saplingGrowthQueue.set(`${newBlockPos.x},${newBlockPos.y},${newBlockPos.z}`, Date.now());
+                            blockPlaced = true;
+                        }
+                    } else {
+                        world.setBlock(newBlockPos.x, newBlockPos.y, newBlockPos.z, item.type);
+                        blockPlaced = true;
+                    }
+                    if (blockPlaced) {
+                        const blockBelowPos = { x: newBlockPos.x, y: newBlockPos.y - 1, z: newBlockPos.z };
+                        if (world.getBlock(blockBelowPos.x, blockBelowPos.y, blockBelowPos.z) === CONSTANTS.BLOCK_TYPES.GRASS) {
+                            grassConversionQueue.set(`${blockBelowPos.x},${blockBelowPos.y},${blockBelowPos.z}`, Date.now());
+                        }
+                        player.removeItem(player.selectedHotbarSlot, 1);
+                        chunkManager.rebuildChunkAt(newBlockPos.x, newBlockPos.y, newBlockPos.z, assets.materials, assets.grassMaterials);
+                        updateFullUI(player, assets.textureDataURLs, CONSTANTS.BLOCK_TYPES);
+                    }
+                }
+            }
+        }
+    };
+    window.addEventListener('mousedown', blockInteractionHandler);
+}
+
+// --- Welt-Prozesse ---
+function processGrassConversion() {
+    if (grassConversionQueue.size === 0) return;
+    const conversionTime = 10000;
+    const now = Date.now();
+    for (const [key, startTime] of grassConversionQueue.entries()) {
+        if (now - startTime > conversionTime) {
+            const [x, y, z] = key.split(',').map(Number);
+            const blockAbove = world.getBlock(x, y + 1, z);
+            const currentBlock = world.getBlock(x, y, z);
+            if (blockAbove !== CONSTANTS.BLOCK_TYPES.AIR && currentBlock === CONSTANTS.BLOCK_TYPES.GRASS) {
+                world.setBlock(x, y, z, CONSTANTS.BLOCK_TYPES.DIRT);
+                chunkManager.rebuildChunkAt(x, y, z, assets.materials, assets.grassMaterials);
+            }
+            grassConversionQueue.delete(key);
+        }
+    }
+}
+
+// In Split/js/main.js
+
+function processSaplingGrowth() {
+    if (saplingGrowthQueue.size === 0) return;
+
+    const growthTime = 30000; // 30 Sekunden
+    const now = Date.now();
+
+    for (const [key, startTime] of saplingGrowthQueue.entries()) {
+        if (now - startTime > growthTime) {
+            const [x, y, z] = key.split(',').map(Number);
+
+            // NEU: Überprüfen, ob der Spieler im Weg ist
+            const playerBoundingBox = player.getBoundingBox();
+            const saplingBox = new THREE.Box3(
+                new THREE.Vector3(x, y, z),
+                new THREE.Vector3(x + 1, y + 1, z + 1)
+            );
+
+            if (world.getBlock(x, y, z) === CONSTANTS.BLOCK_TYPES.SAPLING && !playerBoundingBox.intersectsBox(saplingBox)) {
+                world.generateTree(x, y, z);
+                // ... (Chunks neu bauen)
+            }
+            saplingGrowthQueue.delete(key);
+        }
+    }
+}
+
+function checkAdjacentLeaves(x, y, z) {
+    for (let dx = -1; dx <= 1; dx++) {
+        for (let dy = -1; dy <= 1; dy++) {
+            for (let dz = -1; dz <= 1; dz++) {
+                if (dx === 0 && dy === 0 && dz === 0) continue;
+                if (world.getBlock(x + dx, y + dy, z + dz) === CONSTANTS.BLOCK_TYPES.LEAVES) {
+                    decayQueue.add(`${x + dx},${y + dy},${z + dz}`);
+                }
+            }
+        }
+    }
+    if (!isProcessingDecay) {
+        processDecayQueue();
+    }
+}
+
+async function processDecayQueue() {
+    if (decayQueue.size === 0) {
+        isProcessingDecay = false;
+        return;
+    }
+    isProcessingDecay = true;
+    const blockKey = decayQueue.values().next().value;
+    decayQueue.delete(blockKey);
+    const [x, y, z] = blockKey.split(',').map(Number);
+
+    if (world.getBlock(x, y, z) !== CONSTANTS.BLOCK_TYPES.LEAVES) {
+        setTimeout(processDecayQueue, 25);
+        return;
+    }
+
+    let hasWood = false;
+    const searchRadius = 4;
+    for (let dx = -searchRadius; dx <= searchRadius && !hasWood; dx++) {
+        for (let dy = -searchRadius; dy <= searchRadius && !hasWood; dy++) {
+            for (let dz = -searchRadius; dz <= searchRadius && !hasWood; dz++) {
+                if (Math.sqrt(dx * dx + dy * dy + dz * dz) > searchRadius) continue;
+                if (world.getBlock(x + dx, y + dy, z + dz) === CONSTANTS.BLOCK_TYPES.WOOD) {
+                    hasWood = true;
+                }
+            }
+        }
+    }
+
+    if (!hasWood) {
+        world.setBlock(x, y, z, CONSTANTS.BLOCK_TYPES.AIR);
+        chunkManager.rebuildChunkAt(x, y, z, assets.materials, assets.grassMaterials);
+        if (Math.random() < 0.05) {
+            const dropPos = new THREE.Vector3(x + 0.5, y + 0.5, z + 0.5);
+            entityManager.spawnItemEntity(dropPos, CONSTANTS.BLOCK_TYPES.SAPLING, assets.materials[CONSTANTS.BLOCK_TYPES.SAPLING].map);
+        }
+        checkAdjacentLeaves(x, y, z);
+    }
+    setTimeout(processDecayQueue, 50);
+}
+
+function processDirtToGrassConversion() {
+    if (world.dirtToGrassQueue.size === 0) return;
+
+    const conversionTime = 15000; // 15 Sekunden
+    const now = Date.now();
+
+    for (const [key, startTime] of world.dirtToGrassQueue.entries()) {
+        if (now - startTime > conversionTime) {
+            const [x, y, z] = key.split(',').map(Number);
+
+            // Überprüfen, ob die Bedingungen noch erfüllt sind
+            if (world.getBlock(x, y, z) === CONSTANTS.BLOCK_TYPES.DIRT &&
+                world.getBlock(x, y + 1, z) === CONSTANTS.BLOCK_TYPES.AIR) {
+
+                world.setBlock(x, y, z, CONSTANTS.BLOCK_TYPES.GRASS);
+                chunkManager.rebuildChunkAt(x, y, z, assets.materials, assets.grassMaterials);
+            }
+            world.dirtToGrassQueue.delete(key);
+        }
+    }
+}
+
+// Initialer Start des Setups - Dieser Listener wird nur einmal beim Laden der Seite ausgeführt
 document.addEventListener('DOMContentLoaded', () => {
+    // Menü-Buttons initialisieren, damit sie von Anfang an klickbar sind
+    document.getElementById('new-world-btn').addEventListener('click', () => initGame(true));
+    document.getElementById('load-world-btn').addEventListener('click', async () => {
+        const data = await dbManager.loadGame();
+        if (data.worldData && data.playerData) initGame(false, data);
+    });
+    document.getElementById('settings-btn').addEventListener('click', () => { hideUI(mainMenu); showUI(settingsMenu); });
+
     showUI(mainMenu);
     dbManager.init().then(() => {
         dbManager.hasSaveGame().then(hasSave => {
             document.getElementById('load-world-btn').disabled = !hasSave;
         });
     });
-
+    const viewDistSlider = document.getElementById('view-distance-slider');
+    const viewDistValue = document.getElementById('view-distance-value');
     viewDistSlider.value = settingsManager.settings.viewDistance;
     viewDistValue.textContent = settingsManager.settings.viewDistance;
-    texQualitySelect.value = settingsManager.settings.textureQuality;
-
-    document.getElementById('new-world-btn').addEventListener('click', () => initGame(true));
-    document.getElementById('load-world-btn').addEventListener('click', async () => { const data = await dbManager.loadGame(); if (data.worldData && data.playerData) initGame(false, data); });
-    document.getElementById('settings-btn').addEventListener('click', () => { hideUI(mainMenu); showUI(settingsMenu); });
-    document.getElementById('back-btn').addEventListener('click', async () => { const newQuality = texQualitySelect.value; const qualityChanged = settingsManager.settings.textureQuality !== newQuality; settingsManager.settings.viewDistance = parseInt(viewDistSlider.value); settingsManager.settings.textureQuality = newQuality; settingsManager.save(); if (gameRunning && qualityChanged) { loadingText.textContent = 'Texturen werden aktualisiert...'; showUI(loadingOverlay); await new Promise(r => setTimeout(r, 50)); assets = generateAssets(settingsManager.settings, CONSTANTS, renderer); chunkManager.chunks.forEach(chunk => chunk.dispose()); chunkManager.chunks.clear(); updateFullUI(player, assets.textureDataURLs, CONSTANTS.BLOCK_TYPES); hideUI(loadingOverlay); } hideUI(settingsMenu); if (gameRunning) { showUI(pauseMenu); } else { showUI(mainMenu); } });
-    document.getElementById('resume-btn').addEventListener('click', () => { if (controls) controls.lock(); });
-    document.getElementById('settings-pause-btn').addEventListener('click', () => { hideUI(pauseMenu); showUI(settingsMenu); });
-    document.getElementById('save-btn').addEventListener('click', async (e) => { e.target.textContent = 'Speichern...'; await dbManager.saveGame(world.data, player.getState()); e.target.textContent = 'Gespeichert!'; setTimeout(() => { e.target.textContent = 'Spiel speichern'; }, 2000); });
-    document.getElementById('quit-to-main-btn').addEventListener('click', quitToMainMenu);
+    viewDistSlider.addEventListener('input', (e) => { viewDistValue.textContent = e.target.value; });
+    document.getElementById('texture-quality-select').value = settingsManager.settings.textureQuality;
 });
-
-document.addEventListener('keydown', (e) => {
-    keys[e.code] = true;
-    if (!gameRunning || isPlayerDead) return;
-
-    if (e.code === 'Escape') {
-        if (isInventoryOpen) {
-            isInventoryOpen = false;
-            hideUI(inventoryScreen);
-            controls.lock();
-        } else if (controls.isLocked) {
-            controls.unlock();
-        }
-    }
-
-    // NEU: 'I' zum Öffnen UND Schließen verwenden
-    if (e.code === 'KeyI') {
-        if (isInventoryOpen) {
-            isInventoryOpen = false;
-            hideUI(inventoryScreen);
-            if (!isPaused) controls.lock();
-        } else if (controls.isLocked) {
-            isInventoryOpen = true;
-            controls.unlock();
-            showUI(inventoryScreen);
-        }
-    }
-
-    if (!isPaused && controls.isLocked && e.code.startsWith('Digit')) {
-        const i = parseInt(e.code.slice(5)) - 1;
-        if (i >= 0 && i < 9) {
-            player.selectedHotbarSlot = i;
-            updateFullUI(player, assets.textureDataURLs, CONSTANTS.BLOCK_TYPES);
-        }
-    }
-});
-
-document.addEventListener('keyup', (e) => { keys[e.code] = false; });
-window.addEventListener('resize', () => { if (gameRunning && camera && renderer) { camera.aspect = window.innerWidth / window.innerHeight; camera.updateProjectionMatrix(); renderer.setSize(window.innerWidth, window.innerHeight); } });
-window.addEventListener('contextmenu', (e) => e.preventDefault());
-gameCanvas.addEventListener('click', () => { if (!isPlayerDead && !isPaused) { controls.lock(); } });
-
-// ##################################################################
-// ##### NEUER ABSCHNITT: LOGIK FÜR INVENTAR-INTERAKTION #########
-// ##################################################################
-function initializeInventoryListeners() {
-    const draggedItemDiv = document.getElementById('dragged-item');
-    const draggedItemCount = draggedItemDiv.querySelector('.slot-count');
-
-    // Listener, um das gezogene Item mit der Maus zu bewegen
-    window.addEventListener('mousemove', (e) => {
-        if (draggedItemStack) {
-            draggedItemDiv.style.left = `${e.clientX}px`;
-            draggedItemDiv.style.top = `${e.clientY}px`;
-        }
-    });
-
-    // Wrapper, der das ganze Inventar umfasst (Hotbar + Grid)
-    const inventoryContainer = document.getElementById('inventory-screen');
-
-    inventoryContainer.addEventListener('mousedown', (e) => {
-        if (!isInventoryOpen || !player) return;
-
-        const targetSlot = e.target.closest('.slot');
-
-        // Fall 1: Klick INS Inventar auf einen Slot
-        if (targetSlot) {
-            const slotIndex = parseInt(targetSlot.dataset.index);
-            const itemInSlot = player.inventory[slotIndex];
-
-            // Wenn wir bereits ein Item in der Hand haben (draggedItemStack)
-            if (draggedItemStack) {
-                // Wir legen unser Item in den geklickten Slot.
-                // Gleichzeitig nehmen wir das Item auf, das eventuell schon dort lag.
-                player.inventory[draggedItemStack.originalIndex] = itemInSlot;
-                player.inventory[slotIndex] = draggedItemStack.item;
-
-                draggedItemStack = null;
-                hideUI(draggedItemDiv);
-            }
-            // Wenn wir kein Item in der Hand haben und der geklickte Slot nicht leer ist
-            else if (itemInSlot && itemInSlot.type !== CONSTANTS.BLOCK_TYPES.AIR) {
-                // Wir heben das Item auf
-                draggedItemStack = {
-                    item: itemInSlot,
-                    originalIndex: slotIndex
-                };
-                player.inventory[slotIndex] = { type: CONSTANTS.BLOCK_TYPES.AIR, count: 0 };
-
-                // Aktualisiere das visuelle Element, das an der Maus hängt
-                draggedItemDiv.style.backgroundImage = `url(${assets.textureDataURLs[draggedItemStack.item.type]})`;
-                draggedItemCount.textContent = draggedItemStack.item.count > 1 ? draggedItemStack.item.count : '';
-                showUI(draggedItemDiv);
-            }
-        }
-        // Fall 2: Klick AUSSERHALB des Inventar-Grids, während wir ein Item halten -> Item droppen
-        else if (draggedItemStack) {
-            // "Droppen" bedeutet hier einfach, dass es aus dem Inventar entfernt wird.
-            console.log(`Item gedroppt: ${draggedItemStack.item.count}x ${draggedItemStack.item.type}`);
-            draggedItemStack = null;
-            hideUI(draggedItemDiv);
-        }
-
-        // Nach jeder Aktion die gesamte UI neu zeichnen
-        updateFullUI(player, assets.textureDataURLs, CONSTANTS.BLOCK_TYPES);
-    });
-
-
-    window.addEventListener('mousedown', (e) => {
-        if (!gameRunning || !controls || !controls.isLocked) return;
-
-        raycaster.setFromCamera({ x: 0, y: 0 }, camera);
-        const iMeshes = chunkManager.getIntersectableMeshes();
-        const intersects = raycaster.intersectObjects(iMeshes, false);
-
-        if (intersects.length > 0) {
-            const intersection = intersects[0];
-            if (intersection.distance > CONSTANTS.PLAYER_REACH) return;
-
-            const pos = new THREE.Vector3().copy(intersection.point);
-            const normal = intersection.face.normal.clone();
-
-            // === BLOCK ABBAUEN (Linksklick) ===
-            if (e.button === 0) {
-                pos.sub(normal.multiplyScalar(0.5));
-                const blockPos = { x: Math.floor(pos.x), y: Math.floor(pos.y), z: Math.floor(pos.z) };
-                const blockType = world.getBlock(blockPos.x, blockPos.y, blockPos.z);
-
-                if (blockType !== CONSTANTS.BLOCK_TYPES.AIR && blockType !== CONSTANTS.BLOCK_TYPES.LAVA) {
-                    player.addItem(blockType, 1);
-                    world.setBlock(blockPos.x, blockPos.y, blockPos.z, CONSTANTS.BLOCK_TYPES.AIR);
-
-                    // NEU: Setzling-Drop beim Abbauen
-                    if (blockType === CONSTANTS.BLOCK_TYPES.LEAVES && Math.random() < 0.05) { // 5% Chance
-                        const dropPos = new THREE.Vector3(blockPos.x + 0.5, blockPos.y + 0.5, blockPos.z + 0.5);
-                        entityManager.spawnItemEntity(dropPos, CONSTANTS.BLOCK_TYPES.SAPLING, assets.materials[CONSTANTS.BLOCK_TYPES.SAPLING].map);
-                    }
-
-                    if (blockType === CONSTANTS.BLOCK_TYPES.WOOD || blockType === CONSTANTS.BLOCK_TYPES.LEAVES) {
-                        checkAdjacentLeaves(blockPos.x, blockPos.y, blockPos.z);
-                    }
-                    // Trigger für Blattverfall, wenn Holz oder Blätter abgebaut werden
-                    if (blockType === CONSTANTS.BLOCK_TYPES.WOOD || blockType === CONSTANTS.BLOCK_TYPES.LEAVES) {
-                        checkAdjacentLeaves(blockPos.x, blockPos.y, blockPos.z);
-                    }
-
-                    chunkManager.rebuildChunkAt(blockPos.x, blockPos.y, blockPos.z, assets.materials, assets.grassMaterials);
-                    updateFullUI(player, assets.textureDataURLs, CONSTANTS.BLOCK_TYPES);
-                }
-            }
-            // === BLOCK PLATZIEREN (Rechtsklick) ===
-            else if (e.button === 2) {
-                const item = player.inventory[player.selectedHotbarSlot];
-                if (!item || item.type === CONSTANTS.BLOCK_TYPES.AIR || item.count <= 0) return;
-
-                pos.add(normal.multiplyScalar(0.5));
-                const newBlockPos = { x: Math.floor(pos.x), y: Math.floor(pos.y), z: Math.floor(pos.z) };
-
-                const pBox = player.getBoundingBox();
-                const nBBox = new THREE.Box3(
-                    new THREE.Vector3(newBlockPos.x, newBlockPos.y, newBlockPos.z),
-                    new THREE.Vector3(newBlockPos.x + 1, newBlockPos.y + 1, newBlockPos.z + 1)
-                );
-
-                // In der 'mousedown' Funktion für Rechtsklicks (e.button === 2)
-
-                // Im mousedown-Listener für Rechtsklick (e.button === 2)
-                if (!pBox.intersectsBox(nBBox) && world.getBlock(newBlockPos.x, newBlockPos.y, newBlockPos.z) === CONSTANTS.BLOCK_TYPES.AIR) {
-                    // NEU: Logik zum Pflanzen von Setzlingen
-                    if (item.type === CONSTANTS.BLOCK_TYPES.SAPLING) {
-                        const groundBlock = world.getBlock(newBlockPos.x, newBlockPos.y - 1, newBlockPos.z);
-                        if (groundBlock === CONSTANTS.BLOCK_TYPES.GRASS || groundBlock === CONSTANTS.BLOCK_TYPES.DIRT) {
-                            world.setBlock(newBlockPos.x, newBlockPos.y, newBlockPos.z, item.type);
-                            player.removeItem(player.selectedHotbarSlot, 1);
-                            // Zum Wachstums-Prozess hinzufügen
-                            const key = `${newBlockPos.x},${newBlockPos.y},${newBlockPos.z}`;
-                            saplingGrowthQueue.set(key, Date.now());
-                            chunkManager.rebuildChunkAt(newBlockPos.x, newBlockPos.y, newBlockPos.z, assets.materials, assets.grassMaterials);
-                            updateFullUI(player, assets.textureDataURLs, CONSTANTS.BLOCK_TYPES);
-                        }
-                    } else { // Die bisherige Logik für alle anderen Blöcke
-                        world.setBlock(newBlockPos.x, newBlockPos.y, newBlockPos.z, item.type);}
-                    // NEU: Gras zur Umwandlungs-Warteschlange hinzufügen
-                    const blockBelowPos = { x: newBlockPos.x, y: newBlockPos.y - 1, z: newBlockPos.z };
-                    if (world.getBlock(blockBelowPos.x, blockBelowPos.y, blockBelowPos.z) === CONSTANTS.BLOCK_TYPES.GRASS) {
-                        const key = `${blockBelowPos.x},${blockBelowPos.y},${blockBelowPos.z}`;
-                        grassConversionQueue.set(key, Date.now());
-                    }
-
-                    player.removeItem(player.selectedHotbarSlot, 1);
-                    chunkManager.rebuildChunkAt(newBlockPos.x, newBlockPos.y, newBlockPos.z, assets.materials, assets.grassMaterials);
-                    updateFullUI(player, assets.textureDataURLs, CONSTANTS.BLOCK_TYPES);
-                }
-            }
-        }
-    });
-
-// ##################################################################
-// ##### NEUER ABSCHNITT: LOGIK FÜR BLATTVERFALL #########
-// ##################################################################
-    function checkAdjacentLeaves(x, y, z) {
-        for (let dx = -1; dx <= 1; dx++) {
-            for (let dy = -1; dy <= 1; dy++) {
-                for (let dz = -1; dz <= 1; dz++) {
-                    if (dx === 0 && dy === 0 && dz === 0) continue;
-                    const nx = x + dx;
-                    const ny = y + dy;
-                    const nz = z + dz;
-                    if (world.getBlock(nx, ny, nz) === CONSTANTS.BLOCK_TYPES.LEAVES) {
-                        decayQueue.add(`${nx},${ny},${nz}`);
-                    }
-                }
-            }
-        }
-        // Starte die Verarbeitung, falls sie nicht schon läuft
-        if (!isProcessingDecay) {
-            processDecayQueue();
-        }
-    }
-// Neue Funktion in main.js
-    function processSaplingGrowth() {
-        if (saplingGrowthQueue.size === 0) return;
-
-        const growthTime = 30000; // 30 Sekunden
-        const now = Date.now();
-
-        for (const [key, startTime] of saplingGrowthQueue.entries()) {
-            if (now - startTime > growthTime) {
-                const [x, y, z] = key.split(',').map(Number);
-                // Sicherstellen, dass dort noch ein Setzling ist
-                if (world.getBlock(x, y, z) === CONSTANTS.BLOCK_TYPES.SAPLING) {
-                    world.generateTree(x, y, z); // Diese Methode existiert bereits in World.js
-                    // Betroffene Chunks neu bauen
-                    for (let dx = -2; dx <= 2; dx++) {
-                        for (let dz = -2; dz <= 2; dz++) {
-                            for (let dy = 0; dy <= 6; dy++) {
-                                chunkManager.rebuildChunkAt(x + dx, y + dy, z + dz, assets.materials, assets.grassMaterials);
-                            }
-                        }
-                    }
-                }
-                saplingGrowthQueue.delete(key);
-            }
-        }
-    }
-
-    async function processDecayQueue() {
-        if (decayQueue.size === 0) {
-            isProcessingDecay = false;
-            return;
-        }
-        isProcessingDecay = true;
-
-        // Ein Element aus der Warteschlange nehmen
-        const blockKey = decayQueue.values().next().value;
-        decayQueue.delete(blockKey);
-
-        const [x, y, z] = blockKey.split(',').map(Number);
-
-        // Überprüfen, ob es sich noch um einen Blattblock handelt
-        if (world.getBlock(x, y, z) !== CONSTANTS.BLOCK_TYPES.LEAVES) {
-            setTimeout(processDecayQueue, 25); // Schnell zum nächsten
-            return;
-        }
-
-        // Prüfen, ob Holz in der Nähe ist
-        let hasWood = false;
-        const searchRadius = 3;
-        for (let dx = -searchRadius; dx <= searchRadius && !hasWood; dx++) {
-            for (let dy = -searchRadius; dy <= searchRadius && !hasWood; dy++) {
-                for (let dz = -searchRadius; dz <= searchRadius && !hasWood; dz++) {
-                    if (world.getBlock(x + dx, y + dy, z + dz) === CONSTANTS.BLOCK_TYPES.WOOD) {
-                        hasWood = true;
-                    }
-                }
-            }
-        }
-
-        if (!hasWood) {
-            world.setBlock(x, y, z, CONSTANTS.BLOCK_TYPES.AIR);
-            chunkManager.rebuildChunkAt(x, y, z, assets.materials, assets.grassMaterials);
-
-            // NEU: Setzling-Drop beim Verfall
-            if (Math.random() < 0.05) { // 5% Chance
-                const dropPos = new THREE.Vector3(x + 0.5, y + 0.5, z + 0.5);
-                entityManager.spawnItemEntity(dropPos, CONSTANTS.BLOCK_TYPES.SAPLING, assets.materials[CONSTANTS.BLOCK_TYPES.SAPLING].map);
-            }
-
-            checkAdjacentLeaves(x, y, z);
-        }
-
-        // Nächste Prüfung mit kurzer Verzögerung planen
-        setTimeout(processDecayQueue, 300);
-    }
-}

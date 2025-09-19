@@ -4,15 +4,10 @@
     <option name="autoReloadType" value="SELECTIVE" />
   </component>
   <component name="ChangeListManager">
-    <list default="true" id="9c6a33f9-1798-4a05-bf3e-b729840ddb49" name="Changes" comment="Performance">
+    <list default="true" id="9c6a33f9-1798-4a05-bf3e-b729840ddb49" name="Changes" comment="Neue Logik">
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/Split/js/constants.js" beforeDir="false" afterPath="$PROJECT_DIR$/Split/js/constants.js" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/Split/js/entities/Pig.js" beforeDir="false" afterPath="$PROJECT_DIR$/Split/js/entities/Pig.js" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/Split/js/entities/Skeleton.js" beforeDir="false" afterPath="$PROJECT_DIR$/Split/js/entities/Skeleton.js" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/Split/js/main.js" beforeDir="false" afterPath="$PROJECT_DIR$/Split/js/main.js" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/Split/js/managers/EntityManager.js" beforeDir="false" afterPath="$PROJECT_DIR$/Split/js/managers/EntityManager.js" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/Split/js/utils/AssetGenerator.js" beforeDir="false" afterPath="$PROJECT_DIR$/Split/js/utils/AssetGenerator.js" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/Split/js/world/Chunk.js" beforeDir="false" afterPath="$PROJECT_DIR$/Split/js/world/Chunk.js" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/Split/js/world/World.js" beforeDir="false" afterPath="$PROJECT_DIR$/Split/js/world/World.js" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -54,27 +49,28 @@
     <option name="hideEmptyMiddlePackages" value="true" />
     <option name="showLibraryContents" value="true" />
   </component>
-  <component name="PropertiesComponent">{
-  &quot;keyToString&quot;: {
-    &quot;ASKED_SHARE_PROJECT_CONFIGURATION_FILES&quot;: &quot;true&quot;,
-    &quot;DefaultHtmlFileTemplate&quot;: &quot;HTML File&quot;,
-    &quot;JavaScript Debug.Spielseite.html.executor&quot;: &quot;Run&quot;,
-    &quot;JavaScript Debug.Spielseite_test.html.executor&quot;: &quot;Run&quot;,
-    &quot;JavaScript Debug.index.html.executor&quot;: &quot;Run&quot;,
-    &quot;ModuleVcsDetector.initialDetectionPerformed&quot;: &quot;true&quot;,
-    &quot;RunOnceActivity.ShowReadmeOnStart&quot;: &quot;true&quot;,
-    &quot;RunOnceActivity.git.unshallow&quot;: &quot;true&quot;,
-    &quot;git-widget-placeholder&quot;: &quot;main&quot;,
-    &quot;last_opened_file_path&quot;: &quot;C:/Users/CEDSPE/IdeaProjects/Blockwelt-Test/.idea&quot;,
-    &quot;list.type.of.created.stylesheet&quot;: &quot;CSS&quot;,
-    &quot;node.js.detected.package.eslint&quot;: &quot;true&quot;,
-    &quot;node.js.detected.package.tslint&quot;: &quot;true&quot;,
-    &quot;node.js.selected.package.eslint&quot;: &quot;(autodetect)&quot;,
-    &quot;node.js.selected.package.tslint&quot;: &quot;(autodetect)&quot;,
-    &quot;nodejs_package_manager_path&quot;: &quot;npm&quot;,
-    &quot;vue.rearranger.settings.migration&quot;: &quot;true&quot;
+  <component name="PropertiesComponent"><![CDATA[{
+  "keyToString": {
+    "ASKED_SHARE_PROJECT_CONFIGURATION_FILES": "true",
+    "DefaultHtmlFileTemplate": "HTML File",
+    "JavaScript Debug.Spielseite.html.executor": "Run",
+    "JavaScript Debug.Spielseite_test.html.executor": "Run",
+    "JavaScript Debug.index.html.executor": "Run",
+    "ModuleVcsDetector.initialDetectionPerformed": "true",
+    "RunOnceActivity.ShowReadmeOnStart": "true",
+    "RunOnceActivity.TerminalTabsStorage.copyFrom.TerminalArrangementManager": "true",
+    "RunOnceActivity.git.unshallow": "true",
+    "git-widget-placeholder": "main",
+    "last_opened_file_path": "C:/Users/CEDSPE/IdeaProjects/Blockwelt-Test",
+    "list.type.of.created.stylesheet": "CSS",
+    "node.js.detected.package.eslint": "true",
+    "node.js.detected.package.tslint": "true",
+    "node.js.selected.package.eslint": "(autodetect)",
+    "node.js.selected.package.tslint": "(autodetect)",
+    "nodejs_package_manager_path": "npm",
+    "vue.rearranger.settings.migration": "true"
   }
-}</component>
+}]]></component>
   <component name="RecentsManager">
     <key name="CopyFile.RECENT_KEYS">
       <recent name="C:\Users\CEDSPE\IdeaProjects\Blockwelt-Test\.idea" />
@@ -143,7 +139,9 @@
       <workItem from="1758129942339" duration="788000" />
       <workItem from="1758130749494" duration="677000" />
       <workItem from="1758131635787" duration="400000" />
-      <workItem from="1758190837492" duration="28499000" />
+      <workItem from="1758190837492" duration="29670000" />
+      <workItem from="1758277544245" duration="451000" />
+      <workItem from="1758278012623" duration="1573000" />
     </task>
     <task id="LOCAL-00001" summary="upload">
       <option name="closed" value="true" />
@@ -241,7 +239,15 @@
       <option name="project" value="LOCAL" />
       <updated>1758227871619</updated>
     </task>
-    <option name="localTasksCounter" value="13" />
+    <task id="LOCAL-00013" summary="Neue Logik">
+      <option name="closed" value="true" />
+      <created>1758232394664</created>
+      <option name="number" value="00013" />
+      <option name="presentableId" value="LOCAL-00013" />
+      <option name="project" value="LOCAL" />
+      <updated>1758232394664</updated>
+    </task>
+    <option name="localTasksCounter" value="14" />
     <servers />
   </component>
   <component name="TypeScriptGeneratedFilesManager">
@@ -253,6 +259,7 @@
     <MESSAGE value="Bug Fixes" />
     <MESSAGE value="Bäume + neue Logik" />
     <MESSAGE value="Performance" />
-    <option name="LAST_COMMIT_MESSAGE" value="Performance" />
+    <MESSAGE value="Neue Logik" />
+    <option name="LAST_COMMIT_MESSAGE" value="Neue Logik" />
   </component>
 </project>

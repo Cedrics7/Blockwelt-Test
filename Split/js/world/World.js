@@ -6,6 +6,7 @@ import { BLOCK_TYPES, ORE_PARAMETERS, WORLD_SIZE_X, WORLD_SIZE_Y, WORLD_SIZE_Z, 
 export class World {
     constructor() {
         this.data = null;
+        this.dirtToGrassQueue = new Map();
     }
 
     init(data) {
@@ -134,6 +135,13 @@ export class World {
         if (x < 0 || x >= WORLD_SIZE_X || z < 0 || z >= WORLD_SIZE_Z) return;
         const i = this.coordToIndex(x, y, z);
         if (i !== -1) this.data[i] = t;
+        if (t === BLOCK_TYPES.AIR) {
+            const blockBelow = this.getBlock(x, y - 1, z);
+            if (blockBelow === BLOCK_TYPES.DIRT) {
+                const key = `${x},${y - 1},${z}`;
+                this.dirtToGrassQueue.set(key, Date.now());
+            }
+        }
     }
 
     getBlock(x, y, z) {
